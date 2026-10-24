@@ -95,6 +95,24 @@ describe("buildTrades", () => {
     ]);
   });
 
+  it("gives unique keys to trades that open in the same millisecond", () => {
+    const trades = buildTrades([
+      fill({ id: "a", side: "buy", sz: 1, px: 100, startPosition: 0, time: 1 }),
+      fill({ id: "b", side: "sell", sz: 1, px: 101, startPosition: 1, time: 1, closedPnl: 1 }),
+      fill({ id: "c", side: "buy", sz: 1, px: 101, startPosition: 0, time: 1 }),
+    ]);
+    expect(trades).toHaveLength(2);
+    expect(new Set(trades.map((t) => t.key)).size).toBe(2);
+  });
+
+  it("keeps a trade's key when unrelated older fills drop out of history", () => {
+    const older = fill({ id: "old", coin: "ETH", side: "buy", sz: 1, px: 10, startPosition: 0, time: 1 });
+    const open = fill({ id: "open", side: "buy", sz: 1, px: 100, startPosition: 0, time: 2 });
+    const close = fill({ id: "close", side: "sell", sz: 1, px: 101, startPosition: 1, time: 3, closedPnl: 1 });
+    const key = (fills: Fill[]) => buildTrades(fills).find((t) => t.coin === "BTC")!.key;
+    expect(key([older, open, close])).toBe(key([open, close]));
+  });
+
   it("keeps coins independent", () => {
     const trades = buildTrades([
       fill({ coin: "BTC", side: "buy", sz: 1, px: 100, startPosition: 0, time: 1 }),

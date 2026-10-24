@@ -3,7 +3,10 @@ import type { Fill, FundingEvent } from "../hyperliquid/types";
 export type Direction = "long" | "short";
 
 export type Trade = {
-  /** Stable key: notes attach to this, so it must survive rebuilds. */
+  /**
+   * Stable key: notes attach to this, so it must survive rebuilds. Built from the id of the
+   * trade's first fill, which is unique; the direction keeps both sides of a flip apart.
+   */
   key: string;
   coin: string;
   direction: Direction;
@@ -61,14 +64,14 @@ type Builder = {
   exitSz: number;
 };
 
-function start(coin: string, direction: Direction, time: number, partial: boolean): Builder {
+function start(coin: string, direction: Direction, first: Fill, partial: boolean): Builder {
   return {
     trade: {
-      key: `${coin}:${direction}:${time}`,
+      key: `${coin}:${direction}:${first.id}`,
       coin,
       direction,
       status: "open",
-      openedAt: time,
+      openedAt: first.time,
       closedAt: null,
       entryAvg: null,
       exitAvg: null,
@@ -132,7 +135,7 @@ export function buildTrades(fills: Fill[], funding: FundingEvent[] = []): Trade[
 
       // Position already open when our history begins.
       if (!cur && sgn(before) !== 0) {
-        cur = start(coin, dirOf(before), f.time, true);
+        cur = start(coin, dirOf(before), f, true);
         cur.trade.maxSize = Math.abs(before);
       }
 
@@ -153,7 +156,7 @@ export function buildTrades(fills: Fill[], funding: FundingEvent[] = []): Trade[
         cur.trade.closedAt = f.time;
         trades.push(finish(cur));
 
-        cur = start(coin, dirOf(after), f.time, false);
+        cur = start(coin, dirOf(after), f, false);
         cur.entryNotional += f.px * openSz;
         cur.entrySz += openSz;
         cur.trade.maxSize = openSz;
@@ -165,7 +168,7 @@ export function buildTrades(fills: Fill[], funding: FundingEvent[] = []): Trade[
             pos = after;
             continue; // dust fill that opens and closes nothing
           }
-          cur = start(coin, dirOf(after), f.time, false);
+          cur = start(coin, dirOf(after), f, false);
         }
         if (Math.abs(after) > Math.abs(before)) {
           cur.entryNotional += f.px * f.sz;
