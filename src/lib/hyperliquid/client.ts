@@ -9,6 +9,8 @@ type FetchLike = typeof fetch;
 /** Waits before each retry of a rate-limited (429) or failing (5xx) request. */
 const RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
 
+export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in a minute";
+
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export class HyperliquidClient {
@@ -32,7 +34,7 @@ export class HyperliquidClient {
       if (r.ok) return r.json() as Promise<T>;
       const retryable = r.status === 429 || r.status >= 500;
       if (!retryable || attempt >= RETRY_DELAYS_MS.length) {
-        throw new Error(r.status === 429 ? "Hyperliquid is rate limiting requests; try again in a minute" : `Hyperliquid returned ${r.status}`);
+        throw new Error(r.status === 429 ? RATE_LIMITED : `Hyperliquid returned ${r.status}`);
       }
       const retryAfter = Number(r.headers.get("retry-after"));
       await this.sleep(retryAfter > 0 ? retryAfter * 1000 : RETRY_DELAYS_MS[attempt]);
