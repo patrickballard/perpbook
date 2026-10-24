@@ -9,6 +9,7 @@ import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
 import { TradesTable } from "./TradesTable";
 import { HistoryNotice, savedSince } from "./HistoryNotice";
+import { Reconcile } from "./Reconcile";
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
@@ -22,7 +23,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 
 function Section({ title, hint, children, className = "" }: { title: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`card p-4 sm:p-5 ${className}`}>
+    <section className={`card p-4 sm:p-5 min-w-0 ${className}`}>
       <div className="flex items-baseline justify-between gap-3 mb-4">
         <h2 className="font-semibold">{title}</h2>
         {hint && <span className="text-xs text-muted">{hint}</span>}
@@ -104,6 +105,8 @@ export function Dashboard({ address }: { address: string }) {
             />
           </div>
 
+          {derived.reconciliation && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} />}
+
           <div className="grid lg:grid-cols-5 gap-4 items-start">
             <Section title="Equity" hint="Cumulative net PnL by day" className="lg:col-span-3">
               <EquityChart points={derived.equity} />
@@ -125,13 +128,15 @@ export function Dashboard({ address }: { address: string }) {
                   <div className="space-y-1.5">
                     {raw.positions.map((p) => (
                       <div key={p.coin} className="flex items-center gap-3 text-sm">
-                        <span className="font-medium w-14">{p.coin}</span>
-                        <span className={p.size > 0 ? "up" : "down"}>{p.size > 0 ? "Long" : "Short"}</span>
-                        <span className="num text-ink-2">
-                          {size(p.size)} @ {price(p.entryPx)}
-                          {p.leverage ? ` · ${p.leverage}x` : ""}
+                        <span className="font-medium w-20 sm:w-24 shrink-0 truncate" title={p.coin}>
+                          {p.coin}
                         </span>
-                        <span className={`num ml-auto font-medium ${toneOf(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
+                        <span className={`shrink-0 ${p.size > 0 ? "up" : "down"}`}>{p.size > 0 ? "Long" : "Short"}</span>
+                        <span className="num text-ink-2 min-w-0 truncate whitespace-nowrap">
+                          <span className="hidden sm:inline">{size(p.size)} </span>@ {price(p.entryPx)}
+                          {p.leverage ? <span className="hidden sm:inline"> · {p.leverage}x</span> : null}
+                        </span>
+                        <span className={`num ml-auto shrink-0 whitespace-nowrap font-medium ${toneOf(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
                       </div>
                     ))}
                   </div>

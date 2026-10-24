@@ -45,6 +45,11 @@ export type HlClearinghouseState = {
   assetPositions: { position: HlPosition }[];
 };
 
+type HlSeries = [time: number, value: string][];
+
+/** Periods are day, week, month, allTime, and the same prefixed "perp" for perps only. */
+export type HlPortfolio = [period: string, { accountValueHistory: HlSeries; pnlHistory: HlSeries; vlm: string }][];
+
 /** Normalised fill used by the engine. */
 export type Fill = {
   id: string;
@@ -68,6 +73,7 @@ export type FundingEvent = {
 export type OpenPosition = {
   coin: string;
   size: number; // signed
+  notional: number; // position value in USD at the current mark
   entryPx: number | null;
   unrealizedPnl: number;
   liquidationPx: number | null;

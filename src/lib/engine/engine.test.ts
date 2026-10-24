@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Fill, FundingEvent, HlFill } from "../hyperliquid/types";
 import { normaliseFills } from "../hyperliquid/normalise";
 import { buildTrades } from "./trades";
-import { dailyPnl, equityCurve, greenStreak, tradeStats } from "./stats";
+import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./stats";
 
 let n = 0;
 const fill = (p: Partial<Fill> & Pick<Fill, "side" | "sz" | "px" | "startPosition" | "time">): Fill => ({
@@ -215,5 +215,31 @@ describe("stats", () => {
     ]);
     expect(equityCurve(days).at(-1)?.cumulative).toBeCloseTo(5.5);
     expect(greenStreak(days)).toBe(1);
+  });
+});
+
+describe("reconcile", () => {
+  const day = (net: number) => ({ date: "2026-10-01", realised: net, fees: 0, funding: 0, net });
+
+  it("matches when realised plus unrealised equals Hyperliquid's PnL", () => {
+    const r = reconcile([day(4500), day(26.45)], [{ unrealizedPnl: -3461.85, notional: 70_000 }, { unrealizedPnl: -496.81, notional: 13_000 }], 568.27)!;
+    expect(r.perpbook).toBeCloseTo(567.79);
+    expect(r.matches).toBe(true);
+  });
+
+  it("allows for prices moving between snapshots, in proportion to what's open", () => {
+    // $9 apart: a 0.01% move on $83k of positions, but far too much for a flat account.
+    expect(reconcile([day(585.96)], [{ unrealizedPnl: 0, notional: 83_000 }], 576.63)!.matches).toBe(true);
+    expect(reconcile([day(585.96)], [], 576.63)!.matches).toBe(false);
+  });
+
+  it("reports the difference when history is missing", () => {
+    const r = reconcile([day(100)], [], 350)!;
+    expect(r.matches).toBe(false);
+    expect(r.difference).toBeCloseTo(250);
+  });
+
+  it("does nothing without Hyperliquid's number", () => {
+    expect(reconcile([day(100)], [], null)).toBeNull();
   });
 });

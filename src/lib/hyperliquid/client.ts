@@ -1,4 +1,4 @@
-import type { HlClearinghouseState, HlFill, HlFunding } from "./types";
+import type { HlClearinghouseState, HlFill, HlFunding, HlPortfolio } from "./types";
 
 export const HL_INFO_URL = "https://api.hyperliquid.xyz/info";
 
@@ -85,7 +85,24 @@ export class HyperliquidClient {
     );
   }
 
-  clearinghouse(user: string) {
-    return this.info<HlClearinghouseState>({ type: "clearinghouseState", user });
+  /** Every perp dex: "" is Hyperliquid's own, the rest are builder-deployed (HIP-3) markets. */
+  async perpDexs(): Promise<string[]> {
+    const dexs = await this.info<({ name: string } | null)[]>({ type: "perpDexs" });
+    return dexs.map((d) => d?.name ?? "");
+  }
+
+  clearinghouse(user: string, dex = "") {
+    return this.info<HlClearinghouseState>({ type: "clearinghouseState", user, ...(dex ? { dex } : {}) });
+  }
+
+  /** Positions on every perp dex; HIP-3 positions only come back when asked for by dex. */
+  async allClearinghouses(user: string): Promise<HlClearinghouseState[]> {
+    const dexs = await this.perpDexs().catch(() => [""]);
+    return Promise.all(dexs.map((dex) => this.clearinghouse(user, dex)));
+  }
+
+  /** Hyperliquid's own PnL and account value history, as shown on its portfolio page. */
+  portfolio(user: string) {
+    return this.info<HlPortfolio>({ type: "portfolio", user });
   }
 }
