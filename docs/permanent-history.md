@@ -151,7 +151,9 @@ Dependencies: [`pg`](https://node-postgres.com) and plain numbered `.sql` migrat
 
 ## Prerequisite: stable trade keys
 
-Notes and tags (phase 2) attach to `Trade.key`, which is currently `coin:direction:openedAt`. For a trade that was already open when history starts, `openedAt` is the earliest fill still available, which moves forward as the 10,000-fill window slides. Same-millisecond trades can also collide. Change the key to `coin:direction:<id of the trade's first fill>`. Including the direction keeps the two trades on either side of a flip apart. With stored history the earliest fill stops moving, so keys become permanent. Ship this before notes exist, so no notes ever need migrating.
+Notes and tags (phase 2) attach to `Trade.key`, which is currently `coin:direction:openedAt`. Two trades on the same coin and direction that open in the same millisecond (open, close and reopen inside one block) get the same key. Change the key to `coin:direction:<id of the trade's first fill>`. Fill ids are unique, and including the direction keeps the two trades on either side of a flip apart. Ship this before notes exist, so no notes ever need migrating.
+
+For a trade that was already open when history starts, the "first fill" is just the earliest one still available, and without storage that moves forward as the 10,000-fill window slides. Storage is what fixes this: the earliest *stored* fill never changes, so once a wallet is tracked, every key is permanent. Notes should therefore only be offered on tracked wallets.
 
 ## Milestones
 
