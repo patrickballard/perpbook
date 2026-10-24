@@ -8,8 +8,7 @@ import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
 import { TradesTable } from "./TradesTable";
-
-const FILL_LIMIT = 10_000;
+import { HistoryNotice, savedSince } from "./HistoryNotice";
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
@@ -36,7 +35,7 @@ function Section({ title, hint, children, className = "" }: { title: string; hin
 const toneOf = (v: number | null | undefined) => (v == null ? "flat" : v > 0.004 ? "up" : v < -0.004 ? "down" : "flat");
 
 export function Dashboard({ address }: { address: string }) {
-  const { status, error, raw, derived, sync, demo } = useWallet(address);
+  const { status, error, raw, derived, sync, demo, track, tracking, trackError } = useWallet(address);
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
@@ -50,6 +49,7 @@ export function Dashboard({ address }: { address: string }) {
           />
           <span className="num">{demo ? "Demo account" : shortAddress(address)}</span>
           {raw && <span className="text-muted hidden sm:inline">· synced {new Date(raw.syncedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>}
+          {raw && savedSince(raw.storage) && <span className="text-muted hidden md:inline">· history saved since {savedSince(raw.storage)}</span>}
         </div>
         <button onClick={() => void sync()} disabled={status === "loading"} className="h-9 px-3 rounded-lg border border-line text-sm hover:bg-raised disabled:opacity-50">
           {status === "loading" ? "Syncing…" : "Refresh"}
@@ -70,12 +70,7 @@ export function Dashboard({ address }: { address: string }) {
         </div>
       )}
 
-      {raw && raw.rawFillCount >= FILL_LIMIT * 0.9 && (
-        <div className="card px-4 py-3 mb-4 text-sm text-ink-2">
-          Hyperliquid only keeps your most recent {FILL_LIMIT.toLocaleString("en-GB")} fills, and you&apos;re at {raw.rawFillCount.toLocaleString("en-GB")}. Older trades will drop out of
-          this view; perpbook accounts (coming soon) store them permanently.
-        </div>
-      )}
+      {raw && <HistoryNotice storage={raw.storage} rawFillCount={raw.rawFillCount} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
 
       {!derived && status === "loading" && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
