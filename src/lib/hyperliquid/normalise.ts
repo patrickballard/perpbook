@@ -4,6 +4,7 @@ import type {
   HlClearinghouseState,
   HlFill,
   HlFunding,
+  HlPortfolio,
   OpenPosition,
 } from "./types";
 
@@ -76,21 +77,32 @@ export function normaliseFunding(raw: HlFunding[]): FundingEvent[] {
   return out.sort((a, b) => a.time - b.time);
 }
 
-export function normalisePositions(ch: HlClearinghouseState | null): {
+/** Positions across every perp dex's clearinghouse state (one per dex, HIP-3 included). */
+export function normalisePositions(states: (HlClearinghouseState | null)[]): {
   accountValue: number | null;
   positions: OpenPosition[];
 } {
-  if (!ch) return { accountValue: null, positions: [] };
-  const positions = (ch.assetPositions ?? [])
+  const chs = states.filter((c): c is HlClearinghouseState => c != null);
+  if (!chs.length) return { accountValue: null, positions: [] };
+  const positions = chs
+    .flatMap((ch) => ch.assetPositions ?? [])
     .map((a) => a.position)
     .filter((p) => num(p.szi) !== 0)
     .map((p) => ({
       coin: p.coin,
       size: num(p.szi),
+      notional: Math.abs(num(p.positionValue)),
       entryPx: p.entryPx == null ? null : num(p.entryPx),
       unrealizedPnl: num(p.unrealizedPnl),
       liquidationPx: p.liquidationPx == null ? null : num(p.liquidationPx),
       leverage: p.leverage?.value ?? null,
     }));
-  return { accountValue: num(ch.marginSummary?.accountValue), positions };
+  return { accountValue: chs.reduce((sum, ch) => sum + num(ch.marginSummary?.accountValue), 0), positions };
+}
+
+/** Hyperliquid's all-time perps PnL (realised + unrealised, after fees and funding), or null. */
+export function allTimePerpPnl(p: HlPortfolio | null): number | null {
+  const series = p?.find(([period]) => period === "perpAllTime")?.[1].pnlHistory;
+  const last = series?.at(-1);
+  return last ? num(last[1]) : null;
 }

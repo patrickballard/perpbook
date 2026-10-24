@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HyperliquidClient } from "./hyperliquid/client";
-import { normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
+import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
-import { dailyPnl, equityCurve, greenStreak, tradeStats } from "./engine/stats";
+import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./engine/stats";
 import { demoAccount } from "./demo";
 import { getStorage, getStoredHistory, lastTime, mergeById, requestTracking, type Storage } from "./history";
 
@@ -16,6 +16,8 @@ type Raw = {
   funding: FundingEvent[];
   positions: OpenPosition[];
   accountValue: number | null;
+  /** Hyperliquid's own all-time perps PnL, to check ours against. */
+  hyperliquidPnl: number | null;
   syncedAt: number;
   /** Fills Hyperliquid returned; near 10,000 means older ones are dropping off. */
   rawFillCount: number;
@@ -23,6 +25,18 @@ type Raw = {
 };
 
 const client = new HyperliquidClient();
+
+/**
+ * Positions on every dex and Hyperliquid's own PnL, fetched together after the fills so
+ * all three describe nearly the same moment and can be reconciled.
+ */
+async function liveState(address: string) {
+  const [chs, portfolio] = await Promise.all([
+    client.allClearinghouses(address).catch(() => []),
+    client.portfolio(address).catch(() => null),
+  ]);
+  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio) };
+}
 
 export function useWallet(address: string) {
   const demo = address === "demo";
@@ -36,7 +50,7 @@ export function useWallet(address: string) {
     try {
       if (demo) {
         const d = demoAccount();
-        const live = normalisePositions(d.clearinghouse);
+        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null };
         setRaw({
           fills: normaliseFills(d.fills),
           funding: normaliseFunding(d.funding),
@@ -46,8 +60,7 @@ export function useWallet(address: string) {
           storage: { state: "off" },
         });
       } else {
-        const [storage, ch] = await Promise.all([getStorage(address), client.clearinghouse(address).catch(() => null)]);
-        const live = normalisePositions(ch);
+        const storage = await getStorage(address);
         if (storage.state === "tracked") {
           // Saved history from perpbook, then only what's newer straight from Hyperliquid.
           const stored = await getStoredHistory(address);
@@ -56,6 +69,7 @@ export function useWallet(address: string) {
             client.fills(address, since ?? 0),
             client.funding(address, lastTime(stored.funding) ?? since ?? 0),
           ]);
+          const live = await liveState(address);
           setRaw({
             fills: mergeById(stored.fills, normaliseFills(fills)),
             funding: mergeById(stored.funding, normaliseFunding(funding)),
@@ -66,6 +80,7 @@ export function useWallet(address: string) {
           });
         } else {
           const [fills, funding] = await Promise.all([client.fills(address), client.funding(address)]);
+          const live = await liveState(address);
           setRaw({
             fills: normaliseFills(fills),
             funding: normaliseFunding(funding),
@@ -108,6 +123,7 @@ export function useWallet(address: string) {
       days,
       equity: equityCurve(days),
       streak: greenStreak(days),
+      reconciliation: reconcile(days, raw.positions, raw.hyperliquidPnl),
     };
   }, [raw]);
 

@@ -142,3 +142,30 @@ export function greenStreak(days: Day[]): number {
   }
   return n;
 }
+
+export type Reconciliation = {
+  /** Realised from every fill and funding payment we have: closed PnL − fees + funding. */
+  realised: number;
+  unrealised: number;
+  perpbook: number;
+  hyperliquid: number;
+  difference: number;
+  matches: boolean;
+};
+
+/**
+ * Compare our numbers with Hyperliquid's own all-time perps PnL. They agree when we
+ * have the account's whole history; otherwise the difference is PnL from before the
+ * oldest fill we have.
+ */
+export function reconcile(days: Day[], positions: { unrealizedPnl: number; notional: number }[], hyperliquidPnl: number | null): Reconciliation | null {
+  if (hyperliquidPnl == null) return null;
+  const realised = days.reduce((s, d) => s + d.net, 0);
+  const unrealised = positions.reduce((s, p) => s + p.unrealizedPnl, 0);
+  const perpbook = realised + unrealised;
+  const difference = hyperliquidPnl - perpbook;
+  // Unrealised PnL moves with prices between Hyperliquid's snapshot and ours; allow 0.1% of what's open.
+  const notional = positions.reduce((s, p) => s + p.notional, 0);
+  const matches = Math.abs(difference) <= Math.max(1, notional * 0.001);
+  return { realised, unrealised, perpbook, hyperliquid: hyperliquidPnl, difference, matches };
+}

@@ -8,6 +8,7 @@ import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
 import { TradesTable } from "./TradesTable";
 import { HistoryNotice, savedSince } from "./HistoryNotice";
+import { Reconcile } from "./Reconcile";
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
@@ -101,6 +102,8 @@ export function Dashboard({ address }: { address: string }) {
             />
           </div>
 
+          {derived.reconciliation && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} />}
+
           <div className="grid lg:grid-cols-5 gap-4 items-start">
             <Section title="Equity" hint="Cumulative net PnL by day" className="lg:col-span-3">
               <EquityChart points={derived.equity} />
@@ -122,7 +125,7 @@ export function Dashboard({ address }: { address: string }) {
                   <div className="space-y-1.5">
                     {raw.positions.map((p) => (
                       <div key={p.coin} className="flex items-center gap-3 text-sm">
-                        <span className="font-medium w-14">{p.coin}</span>
+                        <span className="font-medium min-w-14">{p.coin}</span>
                         <span className={p.size > 0 ? "up" : "down"}>{p.size > 0 ? "Long" : "Short"}</span>
                         <span className="num text-ink-2">
                           {size(p.size)} @ {price(p.entryPx)}
