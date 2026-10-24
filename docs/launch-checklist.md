@@ -1,6 +1,6 @@
 # Launch checklist
 
-Everything between today's v0.1 and perpbook having real users who pay. Ordered by priority. 👤 marks items only the maintainer can do (accounts, money, posting as perpbook, legal); everything else can land as a pull request. Ticked items are done in an open pull request, linked, and still need merging.
+Everything between today's v0.1 and perpbook having real users who pay. Ordered by priority. 👤 marks items only the maintainer can do (accounts, money, posting as perpbook, legal); everything else can land as a pull request. Ticked items are done; the linked pull request has the details.
 
 ## 1. Numbers people can trust
 
