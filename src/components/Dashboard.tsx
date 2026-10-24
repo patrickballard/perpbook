@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useWallet } from "@/lib/useWallet";
+import { RATE_LIMITED } from "@/lib/hyperliquid/client";
 import { duration, money, pct, price, ratio, shortAddress, size } from "@/lib/format";
 import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
@@ -63,7 +64,9 @@ export function Dashboard({ address }: { address: string }) {
 
       {status === "error" && (
         <div className="card px-4 py-3 mb-4 text-sm">
-          <span className="down font-medium">Couldn&apos;t sync.</span> <span className="text-ink-2">{error}. Check the address is your main account, not an API or agent wallet.</span>
+          <span className="down font-medium">Couldn&apos;t sync.</span> <span className="text-ink-2">
+            {error}.{error !== RATE_LIMITED && " Check the address is your main account, not an API or agent wallet."}
+          </span>
         </div>
       )}
 
