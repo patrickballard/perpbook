@@ -33,9 +33,9 @@ describe("trackRequest", () => {
 });
 
 describe("walletStatus and historyRequest", () => {
-  it("404s for untracked wallets", async () => {
+  it("says untracked wallets are untracked, and 404s their history", async () => {
     const db = await testDb();
-    expect((await walletStatus(db, addr("a"))).status).toBe(404);
+    expect(await walletStatus(db, addr("a"))).toEqual({ status: 200, body: { state: "untracked" } });
     expect((await historyRequest(db, addr("a"), "fills", null)).status).toBe(404);
     expect((await historyRequest(db, addr("a"), "orders", null)).status).toBe(400);
   });
@@ -51,7 +51,7 @@ describe("walletStatus and historyRequest", () => {
     await syncWallet(db, hl.client(), A, T0 + 3);
 
     const status = await walletStatus(db, A, T0 + 4);
-    expect(status).toMatchObject({ status: 200, body: { tracked: true, lastSyncedAt: T0 + 3, gaps: [] } });
+    expect(status).toMatchObject({ status: 200, body: { state: "tracked", status: { tracked: true, lastSyncedAt: T0 + 3, gaps: [] } } });
     const fills = await historyRequest(db, A, "fills", null);
     expect(fills).toMatchObject({ status: 200, body: { next: null, rows: [{ coin: "BTC", side: "buy", sz: 1, px: 100 }] } });
     const funding = await historyRequest(db, A, "funding", null);

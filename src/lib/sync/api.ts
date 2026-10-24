@@ -15,13 +15,22 @@ export type WalletStatus = {
   gaps: Gap[];
 };
 
-export async function walletStatus(db: Db, address: string, now = Date.now()): Promise<ApiResult<WalletStatus>> {
+/**
+ * off: this deployment has no database. untracked: it does, but this wallet isn't saved yet.
+ * Always a 200, so an ordinary page view never logs a failed request in the browser.
+ */
+export type StorageState = { state: "off" } | { state: "untracked" } | { state: "tracked"; status: WalletStatus };
+
+export async function walletStatus(db: Db, address: string, now = Date.now()): Promise<ApiResult<StorageState>> {
   const w = await getWallet(db, address);
-  if (!w) return { status: 404, body: { error: "not tracked" } };
+  if (!w) return { status: 200, body: { state: "untracked" } };
   await touchWallet(db, address, now);
   return {
     status: 200,
-    body: { tracked: true, trackedSince: w.trackedSince, lastSyncedAt: w.lastSyncedAt, syncError: w.syncError, gaps: await getGaps(db, address) },
+    body: {
+      state: "tracked",
+      status: { tracked: true, trackedSince: w.trackedSince, lastSyncedAt: w.lastSyncedAt, syncError: w.syncError, gaps: await getGaps(db, address) },
+    },
   };
 }
 
