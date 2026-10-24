@@ -31,7 +31,7 @@
   "description": "Open-source trading journal for perp traders: paste a Hyperliquid wallet, get every trade rebuilt.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/paddy1878/perpbook"
+    "url": "https://github.com/patrickballard/perpbook"
   },
   "engines": {
     "node": ">=20"

@@ -159,7 +159,7 @@ export function Dashboard({ address }: { address: string }) {
 
       <footer className="mt-10 text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
         <span>Read-only: perpbook only ever reads public data for this address.</span>
-        <a href="https://github.com/paddy1878/perpbook" className="underline underline-offset-2 hover:text-ink-2">
+        <a href="https://github.com/patrickballard/perpbook" className="underline underline-offset-2 hover:text-ink-2">
           Open source on GitHub
         </a>
       </footer>

@@ -15,7 +15,7 @@ export default function Home() {
         <span className="font-semibold tracking-tight text-lg">
           perpbook<span className="text-accent">.</span>
         </span>
-        <a href="https://github.com/paddy1878/perpbook" className="ml-auto text-sm text-ink-2 hover:text-ink">
+        <a href="https://github.com/patrickballard/perpbook" className="ml-auto text-sm text-ink-2 hover:text-ink">
           GitHub
         </a>
       </header>
