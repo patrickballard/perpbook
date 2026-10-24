@@ -6,20 +6,37 @@ export const isAddress = (s: string) => /^0x[0-9a-fA-F]{40}$/.test(s.trim());
 
 type FetchLike = typeof fetch;
 
+/** Waits before each retry of a rate-limited (429) or failing (5xx) request. */
+const RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export class HyperliquidClient {
   constructor(
     private readonly fetchImpl: FetchLike = (...a) => fetch(...a),
     private readonly url = HL_INFO_URL,
+    private readonly sleep: (ms: number) => Promise<void> = wait,
   ) {}
 
+  /**
+   * Hyperliquid limits each IP to a weight budget per minute, and a full sync of an
+   * active wallet can use most of it, so a 429 usually clears within seconds.
+   */
   async info<T>(body: Record<string, unknown>): Promise<T> {
-    const r = await this.fetchImpl(this.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`Hyperliquid returned ${r.status}`);
-    return r.json() as Promise<T>;
+    for (let attempt = 0; ; attempt++) {
+      const r = await this.fetchImpl(this.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) return r.json() as Promise<T>;
+      const retryable = r.status === 429 || r.status >= 500;
+      if (!retryable || attempt >= RETRY_DELAYS_MS.length) {
+        throw new Error(r.status === 429 ? "Hyperliquid is rate limiting requests; try again in a minute" : `Hyperliquid returned ${r.status}`);
+      }
+      const retryAfter = Number(r.headers.get("retry-after"));
+      await this.sleep(retryAfter > 0 ? retryAfter * 1000 : RETRY_DELAYS_MS[attempt]);
+    }
   }
 
   /**
