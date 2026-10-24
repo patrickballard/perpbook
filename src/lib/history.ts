@@ -1,19 +1,16 @@
 // Browser side of stored history: talks to /api/w/[address] and merges with live data.
 
-import type { HistoryPage, WalletStatus } from "./sync/api";
+import type { HistoryPage, StorageState } from "./sync/api";
 import type { Fill, FundingEvent } from "./hyperliquid/types";
 
-/** off: this deployment has no database. untracked: it does, but this wallet isn't saved yet. */
-export type Storage = { state: "off" } | { state: "untracked" } | { state: "tracked"; status: WalletStatus };
+export type Storage = StorageState;
 
 type FetchLike = typeof fetch;
 
 export async function getStorage(address: string, f: FetchLike = fetch): Promise<Storage> {
   try {
     const r = await f(`/api/w/${address}`, { cache: "no-store" });
-    if (r.status === 404) return { state: "untracked" };
-    if (!r.ok) return { state: "off" };
-    return { state: "tracked", status: (await r.json()) as WalletStatus };
+    return r.ok ? ((await r.json()) as Storage) : { state: "off" };
   } catch {
     return { state: "off" };
   }

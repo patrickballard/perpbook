@@ -5,15 +5,16 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 describe("getStorage", () => {
   it("maps API answers to storage states", async () => {
-    expect(await getStorage("0xa", (async () => json({ error: "not tracked" }, 404)) as typeof fetch)).toEqual({ state: "untracked" });
-    expect(await getStorage("0xa", (async () => json({ error: "storage is not configured" }, 503)) as typeof fetch)).toEqual({ state: "off" });
+    expect(await getStorage("0xa", (async () => json({ state: "untracked" })) as typeof fetch)).toEqual({ state: "untracked" });
+    expect(await getStorage("0xa", (async () => json({ state: "off" })) as typeof fetch)).toEqual({ state: "off" });
+    expect(await getStorage("0xa", (async () => json({ error: "boom" }, 500)) as typeof fetch)).toEqual({ state: "off" });
     expect(
       await getStorage("0xa", (async () => {
         throw new TypeError("offline");
       }) as typeof fetch),
     ).toEqual({ state: "off" });
     const status = { tracked: true, trackedSince: 1, lastSyncedAt: 2, syncError: null, gaps: [] };
-    expect(await getStorage("0xa", (async () => json(status)) as typeof fetch)).toEqual({ state: "tracked", status });
+    expect(await getStorage("0xa", (async () => json({ state: "tracked", status })) as typeof fetch)).toEqual({ state: "tracked", status });
   });
 });
 
