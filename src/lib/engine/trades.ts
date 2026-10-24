@@ -26,6 +26,32 @@ export type Trade = {
 const EPS = 1e-9;
 const sgn = (x: number) => (Math.abs(x) <= EPS * Math.max(1, Math.abs(x)) ? 0 : x > 0 ? 1 : -1);
 const dirOf = (s: number): Direction => (s > 0 ? "long" : "short");
+const samePos = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
+const afterOf = (f: Fill) => f.startPosition + (f.side === "buy" ? f.sz : -f.sz);
+
+/**
+ * One order sweeping the book produces several fills with the same timestamp, and
+ * Hyperliquid's trade ids don't follow execution order. Within each timestamp, put
+ * fills in the order their `startPosition`s chain together, so a sweep isn't
+ * mistaken for a gap in history. Expects one coin's fills, sorted by time.
+ */
+function executionOrder(list: Fill[]): Fill[] {
+  const out: Fill[] = [];
+  for (let i = 0; i < list.length; ) {
+    let j = i;
+    while (j < list.length && list[j].time === list[i].time) j++;
+    const group = list.slice(i, j);
+    while (group.length) {
+      const prev = out.at(-1);
+      // Continue from the previous fill; failing that, start from the fill nothing else in the group leads to.
+      let k = prev ? group.findIndex((f) => samePos(f.startPosition, afterOf(prev))) : -1;
+      if (k < 0) k = group.findIndex((f) => !group.some((o) => o !== f && samePos(f.startPosition, afterOf(o))));
+      out.push(group.splice(Math.max(k, 0), 1)[0]);
+    }
+    i = j;
+  }
+  return out;
+}
 
 type Builder = {
   trade: Trade;
@@ -90,13 +116,13 @@ export function buildTrades(fills: Fill[], funding: FundingEvent[] = []): Trade[
     let cur: Builder | null = null;
     let pos = 0;
 
-    for (const f of list) {
+    for (const f of executionOrder(list)) {
       const before = f.startPosition;
       const delta = f.side === "buy" ? f.sz : -f.sz;
       const after = before + delta;
 
       // Gap: our tracked position disagrees with what Hyperliquid says it was.
-      if (cur && Math.abs(before - pos) > 1e-6 * Math.max(1, Math.abs(pos))) {
+      if (cur && !samePos(before, pos)) {
         cur.trade.status = "closed";
         cur.trade.closedAt = f.time;
         cur.trade.partialHistory = true;

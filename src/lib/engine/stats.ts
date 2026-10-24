@@ -26,13 +26,22 @@ export type TradeStats = {
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// Building an Intl.DateTimeFormat is slow, and we format once per fill and trade; keep one per time zone.
+const cached = (make: (timeZone?: string) => Intl.DateTimeFormat) => {
+  const m = new Map<string | undefined, Intl.DateTimeFormat>();
+  return (timeZone?: string) => {
+    let f = m.get(timeZone);
+    if (!f) m.set(timeZone, (f = make(timeZone)));
+    return f;
+  };
+};
+const hourWeekdayFmt = cached(
+  (timeZone) => new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23", weekday: "short" }),
+);
+const dayFmt = cached((timeZone) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }));
+
 function partsIn(ms: number, timeZone?: string) {
-  const p = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    hour: "2-digit",
-    hourCycle: "h23",
-    weekday: "short",
-  }).formatToParts(new Date(ms));
+  const p = hourWeekdayFmt(timeZone).formatToParts(new Date(ms));
   const hour = Number(p.find((x) => x.type === "hour")?.value ?? 0);
   const wd = p.find((x) => x.type === "weekday")?.value ?? "Mon";
   return { hour, weekday: WEEKDAYS.indexOf(wd) };
@@ -101,8 +110,7 @@ export type Day = {
   net: number;
 };
 
-export const dayKey = (ms: number, timeZone?: string) =>
-  new Date(ms).toLocaleDateString("en-CA", { timeZone });
+export const dayKey = (ms: number, timeZone?: string) => dayFmt(timeZone).format(new Date(ms));
 
 /**
  * Account-level daily PnL straight from fills and funding (realised − fees + funding),

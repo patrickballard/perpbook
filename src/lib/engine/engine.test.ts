@@ -72,6 +72,29 @@ describe("buildTrades", () => {
     expect(trades[1]).toMatchObject({ status: "closed", partialHistory: true });
   });
 
+  it("orders same-millisecond fills by execution, not by trade id", () => {
+    // One sweep, two fills in the same block; the later fill has the smaller id.
+    const trades = buildTrades([
+      fill({ id: "9", side: "sell", sz: 2, px: 100, startPosition: 0, time: 1 }),
+      fill({ id: "1", side: "sell", sz: 1, px: 99, startPosition: -2, time: 1 }),
+      fill({ id: "5", side: "buy", sz: 3, px: 90, startPosition: -3, time: 2, closedPnl: 28 }),
+    ]);
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({ direction: "short", status: "closed", partialHistory: false, maxSize: 3, fillCount: 3 });
+    expect(trades[0].entryAvg).toBeCloseTo(299 / 3);
+  });
+
+  it("orders a same-millisecond flip correctly even when it is the first group we see", () => {
+    const trades = buildTrades([
+      fill({ id: "1", side: "buy", sz: 3, px: 100, startPosition: -1, time: 1, closedPnl: 1 }),
+      fill({ id: "2", side: "sell", sz: 1, px: 101, startPosition: 0, time: 1 }),
+    ]);
+    expect(trades.map((t) => [t.direction, t.status, t.partialHistory])).toEqual([
+      ["short", "closed", false],
+      ["long", "open", false],
+    ]);
+  });
+
   it("keeps coins independent", () => {
     const trades = buildTrades([
       fill({ coin: "BTC", side: "buy", sz: 1, px: 100, startPosition: 0, time: 1 }),
