@@ -147,7 +147,7 @@ Use one setup for both the hosted version and self-hosting, so the two can't dri
 
 Why the worker shouldn't run as a Vercel Cron job: the free (Hobby) plan only runs cron once a day; functions have time limits, while a first sync can take minutes because of the rate budget; and Vercel's outgoing IPs change, which makes the per-IP budget impossible to manage. An always-on worker with one fixed IP is simple and predictable. Adding a second worker on another IP doubles capacity.
 
-Dependencies: [`postgres`](https://github.com/porsager/postgres) (postgres.js) and plain numbered `.sql` migration files run by a short script. That's two small pieces for a codebase this size, and no ORM.
+Dependencies: [`pg`](https://node-postgres.com) and plain numbered `.sql` migration files run by a short script, with no ORM. Tests run against [PGlite](https://pglite.dev), which is real Postgres compiled to WebAssembly, so CI and contributors don't need a database server. Both are reached through a small `Db` interface (`query(text, params)` plus `transaction(fn)`).
 
 ## Prerequisite: stable trade keys
 
@@ -160,7 +160,7 @@ Notes and tags (phase 2) attach to `Trade.key`, which is currently `coin:directi
 - [ ] Migrations, `syncWallet`, worker loop with the weight budget, gap recording
 - [ ] Track and history API routes; `useWallet` loads stored history plus the live delta
 - [ ] `docker-compose.yml` with app, worker and postgres (this also completes the "one-command self-hosting" roadmap item)
-- [ ] Tests: a fake Hyperliquid that drops fills older than N, checking that a tracked wallet keeps them; gap detection; resuming after a crash between pages; CI runs against a Postgres service container
+- [ ] Tests: a fake Hyperliquid that drops fills older than N, checking that a tracked wallet keeps them; gap detection; resuming after a crash between pages; all of it on PGlite, so CI needs no database service
 - [ ] **Done when:** a wallet tracked on day 1 still shows its day-1 trades after it has made more than 10,000 fills since
 
 **Phase 2: accounts and the journal**
