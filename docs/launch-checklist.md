@@ -1,29 +1,32 @@
 # Launch checklist
 
-Everything between today's v0.1 and perpbook having real users who pay. Ordered by priority. 👤 marks items only the maintainer can do (accounts, money, posting as perpbook, legal); everything else can land as a pull request.
+Everything between today's v0.1 and perpbook having real users who pay. Ordered by priority. 👤 marks items only the maintainer can do (accounts, money, posting as perpbook, legal); everything else can land as a pull request. Ticked items are done in an open pull request, linked, and still need merging.
 
 ## 1. Numbers people can trust
 
-- [ ] Order same-millisecond fills by execution, not trade id (#1)
-- [ ] Stable trade keys that survive history sliding and never collide
-- [ ] Back off and retry on Hyperliquid `429`s instead of failing the sync
-- [ ] Reconciliation check: compare perpbook's total PnL with Hyperliquid's own `portfolio` PnL and show a "matches Hyperliquid" badge, or explain the difference
+- [x] Order same-millisecond fills by execution, not trade id (#1)
+- [x] Stable trade keys that never collide (#3); permanent once a wallet is saved
+- [x] Back off and retry on Hyperliquid `429`s instead of failing the sync (#4)
+- [x] Reconciliation check: realised + unrealised vs Hyperliquid's own `portfolio` PnL, with a "Matches Hyperliquid" badge or an explanation (#7)
+- [x] Include positions on builder-deployed (HIP-3) markets, which were missing from "Open now" and unrealised PnL (#7)
 - [ ] Show funding that can't be attributed to a trade (paid before the first stored fill) instead of letting totals differ silently
 - [ ] Tests built from real fill patterns: liquidations, ADL, HIP-3 markets, TWAP slices, partial closes
+- [ ] Upgrade Next.js and Vitest: `npm audit` reports 5 advisories (2 critical, in Vitest's dev tooling); fixes need Next 16 and Vitest 5
 
 ## 2. Never lose history (design: [permanent-history.md](permanent-history.md))
 
-- [ ] Database layer, migrations and tests (Postgres; PGlite in tests)
-- [ ] `syncWallet`: incremental fills and funding, gap detection, adaptive scheduling
-- [ ] Sync worker with a per-IP weight budget
-- [ ] `POST /api/w/[address]/track` and `GET /api/w/[address]/history`
-- [ ] Dashboard loads stored history plus the live delta; "Keep my history" button; missing-dates notice
-- [ ] `docker-compose.yml` (app, worker, postgres) and a self-hosting section in the README
+- [x] Database layer, migrations and tests (Postgres; PGlite in tests) (#5)
+- [x] `syncWallet`: incremental fills and funding, gap detection, adaptive scheduling (#5)
+- [x] Sync worker with a per-IP weight budget (#5)
+- [x] `POST /api/w/[address]/track` and `GET /api/w/[address]/history` (#5)
+- [x] Dashboard loads stored history plus the live delta; "Keep my history" button; missing-dates notice (#6)
+- [x] `docker-compose.yml` (app, worker, postgres) and a self-hosting section in the README (#6; not yet run, no Docker on the machine it was built on)
 - [ ] 👤 Create the hosted database (proposal: Neon) and worker host (proposal: Fly.io); set `DATABASE_URL` on Vercel
+- [ ] 👤 Try `docker compose up` once
 
 ## 3. Things that bring people in
 
-- [ ] Shareable PnL card: an Open Graph image for every `/w/[address]` link, so posting a wallet on X shows its stats
+- [x] Shareable PnL card: an Open Graph image for every `/w/[address]` link, so posting a wallet on X shows its stats (#8)
 - [ ] Download a PnL card as an image from the dashboard
 - [ ] Monthly "wrapped" summary page per wallet
 - [ ] Landing page that sells it: real screenshot, the three promises (trades not fills, real PnL, read-only), a demo link above the fold
@@ -50,9 +53,9 @@ Everything between today's v0.1 and perpbook having real users who pay. Ordered 
 ## 6. Reaching users
 
 Before launch:
-- [ ] Launch thread for X, written around a real finding ("we rebuilt 7,800 fills from one wallet: here's what the exchange UI doesn't tell you")
+- [x] Launch thread for X, written around a real finding (drafted, not public; ask for the draft)
 - [ ] Short demo video or GIF of paste address → dashboard
-- [ ] Outreach notes for Hyperliquid front-ends (Invo and others) offering perpbook as their journal link
+- [x] Outreach notes for Hyperliquid front-ends (Invo and others) offering perpbook as their journal link (drafted)
 - [ ] README polish: badges, screenshot, "self-host in one command"
 - [ ] 👤 X account for perpbook; Discord or GitHub Discussions for feedback
 
