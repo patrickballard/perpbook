@@ -61,6 +61,7 @@ DATABASE_URL=postgres://… npm run worker
 | `HL_WEIGHT_PER_MINUTE` | `1000` | The worker's share of Hyperliquid's 1,200 per-IP budget. Run one worker per IP. |
 | `TRACK_PER_IP_PER_DAY` | `3` | New wallets one visitor can save per day. |
 | `MAX_TRACKED_WALLETS` | `2000` | Stop accepting new wallets past this. |
+| `SITE_URL` | unset | Public URL, e.g. `https://perpbook.example`, so share images get absolute links. Not needed on Vercel. |
 
 ## Tests
 
