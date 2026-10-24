@@ -7,6 +7,7 @@ import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
 import { dailyPnl, equityCurve, greenStreak, tradeStats } from "./engine/stats";
 import { demoAccount } from "./demo";
+import { getStorage, getStoredHistory, lastTime, mergeById, requestTracking, type Storage } from "./history";
 
 export type WalletStatus = "idle" | "loading" | "ready" | "error";
 
@@ -16,7 +17,9 @@ type Raw = {
   positions: OpenPosition[];
   accountValue: number | null;
   syncedAt: number;
+  /** Fills Hyperliquid returned; near 10,000 means older ones are dropping off. */
   rawFillCount: number;
+  storage: Storage;
 };
 
 const client = new HyperliquidClient();
@@ -40,21 +43,38 @@ export function useWallet(address: string) {
           ...live,
           syncedAt: Date.now(),
           rawFillCount: d.fills.length,
+          storage: { state: "off" },
         });
       } else {
-        const [fills, funding, ch] = await Promise.all([
-          client.fills(address),
-          client.funding(address),
-          client.clearinghouse(address).catch(() => null),
-        ]);
+        const [storage, ch] = await Promise.all([getStorage(address), client.clearinghouse(address).catch(() => null)]);
         const live = normalisePositions(ch);
-        setRaw({
-          fills: normaliseFills(fills),
-          funding: normaliseFunding(funding),
-          ...live,
-          syncedAt: Date.now(),
-          rawFillCount: fills.length,
-        });
+        if (storage.state === "tracked") {
+          // Saved history from perpbook, then only what's newer straight from Hyperliquid.
+          const stored = await getStoredHistory(address);
+          const since = lastTime(stored.fills);
+          const [fills, funding] = await Promise.all([
+            client.fills(address, since ?? 0),
+            client.funding(address, lastTime(stored.funding) ?? since ?? 0),
+          ]);
+          setRaw({
+            fills: mergeById(stored.fills, normaliseFills(fills)),
+            funding: mergeById(stored.funding, normaliseFunding(funding)),
+            ...live,
+            syncedAt: Date.now(),
+            rawFillCount: fills.length,
+            storage,
+          });
+        } else {
+          const [fills, funding] = await Promise.all([client.fills(address), client.funding(address)]);
+          setRaw({
+            fills: normaliseFills(fills),
+            funding: normaliseFunding(funding),
+            ...live,
+            syncedAt: Date.now(),
+            rawFillCount: fills.length,
+            storage,
+          });
+        }
       }
       setStatus("ready");
     } catch (e) {
@@ -66,6 +86,17 @@ export function useWallet(address: string) {
   useEffect(() => {
     void sync();
   }, [sync]);
+
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [tracking, setTracking] = useState(false);
+  const track = useCallback(async () => {
+    setTracking(true);
+    setTrackError(null);
+    const err = await requestTracking(address);
+    if (err) setTrackError(err);
+    else await sync(); // stay "Saving…" until the dashboard knows the wallet is tracked
+    setTracking(false);
+  }, [address, sync]);
 
   const derived = useMemo(() => {
     if (!raw) return null;
@@ -80,5 +111,5 @@ export function useWallet(address: string) {
     };
   }, [raw]);
 
-  return { status, error, raw, derived, sync, demo };
+  return { status, error, raw, derived, sync, demo, track, tracking, trackError };
 }

@@ -1,0 +1,40 @@
+# Self-host perpbook with permanent history: `docker compose up -d`, then open http://localhost:3000.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: perpbook
+      POSTGRES_PASSWORD: perpbook
+      POSTGRES_DB: perpbook
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perpbook"]
+      interval: 2s
+      retries: 30
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["npm", "run", "worker"]
+    environment:
+      DATABASE_URL: postgres://perpbook:perpbook@db:5432/perpbook
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build: .
+    command: ["sh", "-c", "npm run migrate && npm start"]
+    environment:
+      DATABASE_URL: postgres://perpbook:perpbook@db:5432/perpbook
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

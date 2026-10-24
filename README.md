@@ -29,12 +29,38 @@ Open <http://localhost:3000> and paste an address, or go to `/w/demo` for a gene
 src/lib/hyperliquid/   client for the public info endpoint + normalisation (spot filtered out, de-duplicated)
 src/lib/engine/        trades.ts  rebuilds round trips from fills
                        stats.ts   win rate, profit factor, expectancy, breakdowns, daily PnL, equity
+src/lib/db/            Postgres schema, migrations and queries for stored history
+src/lib/sync/          syncWallet, the Hyperliquid weight budget, and the API logic
+src/worker/            the sync worker (`npm run worker`)
 src/components/        dashboard, equity chart, PnL calendar, breakdown bars, trades table
 ```
 
 **Trade reconstruction.** A trade opens when a coin's position leaves zero and closes when it returns to zero. Hyperliquid reports the position size before every fill (`startPosition`), which perpbook treats as the source of truth. That also catches gaps: if the reported size disagrees with what we've tracked, the trade is closed and flagged `partial` rather than silently producing wrong numbers.
 
-**The 10,000-fill limit.** Hyperliquid's API only exposes your most recent 10,000 fills. Today perpbook reads them straight from the browser, so very active traders will see older history drop off. Stored, permanent history is the next milestone (see the roadmap).
+**The 10,000-fill limit.** Hyperliquid's API only exposes your most recent 10,000 fills, so very active traders see older history drop off. When perpbook has a database, a wallet can be saved with "Keep my history": a worker then stores every new fill and funding payment, and the dashboard shows stored history plus anything newer straight from Hyperliquid. If more than 10,000 fills happen between two saves, the dates that couldn't be recovered are shown. Design notes: [docs/permanent-history.md](docs/permanent-history.md).
+
+## Self-hosting
+
+Without a database, perpbook runs entirely in the browser (`npm run dev` above). To keep history permanently:
+
+```bash
+docker compose up -d
+```
+
+That starts Postgres, the app on <http://localhost:3000> and the sync worker. To run them yourself instead, point `DATABASE_URL` at any Postgres and start both processes:
+
+```bash
+DATABASE_URL=postgres://… npm run migrate
+DATABASE_URL=postgres://… npm start
+DATABASE_URL=postgres://… npm run worker
+```
+
+| Variable | Default | |
+|---|---|---|
+| `DATABASE_URL` | unset | Postgres connection string. Unset turns storage off. |
+| `HL_WEIGHT_PER_MINUTE` | `1000` | The worker's share of Hyperliquid's 1,200 per-IP budget. Run one worker per IP. |
+| `TRACK_PER_IP_PER_DAY` | `3` | New wallets one visitor can save per day. |
+| `MAX_TRACKED_WALLETS` | `2000` | Stop accepting new wallets past this. |
 
 ## Tests
 
@@ -42,12 +68,13 @@ src/components/        dashboard, equity chart, PnL calendar, breakdown bars, tr
 npm test
 ```
 
-The engine is covered for simple round trips, scaling in and out, flips, positions opened before the available history, missing fills, multi-coin accounts, funding attribution, spot filtering and the stats maths.
+The engine is covered for simple round trips, scaling in and out, flips, positions opened before the available history, missing fills, multi-coin accounts, funding attribution, spot filtering and the stats maths. Storage and sync tests run on [PGlite](https://pglite.dev) against a fake Hyperliquid, so they need no database server.
 
 ## Roadmap
 
 - [x] Wallet sync, trade reconstruction, dashboard, PnL calendar, breakdowns
-- [ ] Accounts, Postgres storage and a sync worker (permanent history past 10,000 fills)
+- [x] Postgres storage and a sync worker (permanent history past 10,000 fills)
+- [ ] Accounts: sign in, follow several wallets
 - [ ] Notes, setup tags and mistake tags on every trade; R multiples from a planned stop
 - [ ] CSV import with a TradeZella preset
 - [ ] One-command self-hosting with Docker Compose
