@@ -18,9 +18,11 @@ The worker also shouldn't run as a Vercel Cron job: the free plan only runs cron
 
 ## 1. Database: Neon
 
+The quickest route is from inside Vercel, with no separate Neon signup: open the perpbook project, go to **Storage**, create a **Neon** database in a US East (Washington, D.C. / `iad1`) region, and connect it to the project. Vercel then adds the connection strings to the project's environment variables itself. Otherwise, from Neon directly:
+
 1. Create a Neon project in **AWS US East (N. Virginia)**.
 2. In Vercel, open the project's **Integrations** and add **Neon**, linked to that project. The integration adds the connection strings to Vercel's environment variables. Check that `DATABASE_URL` is among them; if it has a different name, add `DATABASE_URL` yourself with Neon's **pooled** connection string (the host contains `-pooler`).
-3. Keep Neon's **direct** connection string (no `-pooler`) for the worker.
+3. Keep Neon's **direct** connection string (no `-pooler`) for the worker. With the Vercel route, it's the variable whose name ends in `UNPOOLED`, or on the database's page in Neon's console.
 
 You don't need to create any tables: the worker runs the migrations when it starts.
 
@@ -28,7 +30,9 @@ You don't need to create any tables: the worker runs the migrations when it star
 
 Create the smallest server with a public IPv4 on Ubuntu 24.04, in a US East location. The worker uses very little CPU or memory. The only inbound port it needs is SSH; if your provider has a firewall, allow port 22 and nothing else.
 
-Then, on the server:
+**Quickest:** copy [`deploy/cloud-init.yaml`](../deploy/cloud-init.yaml), replace its one placeholder line with Neon's direct connection string, and paste it into the **Cloud config** (Hetzner) or **User data** box when you create the server. The server installs Docker, fetches perpbook and starts the worker on its own, in a few minutes. The connection string is kept in your provider's server metadata, as anything in that box is; if you'd rather not, use the manual steps below.
+
+**Or by hand**, on the server:
 
 ```bash
 apt update && apt install -y docker.io docker-compose-v2 git

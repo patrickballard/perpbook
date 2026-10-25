@@ -1,0 +1,20 @@
+#cloud-config
+# Paste into "Cloud config" / "User data" when creating an Ubuntu 24.04 server.
+# Replace the one placeholder line with Neon's direct connection string first.
+# The server installs Docker, fetches perpbook and starts the sync worker on its own;
+# check progress with: docker compose -f /opt/perpbook/docker-compose.worker.yml logs -f
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+write_files:
+  - path: /opt/perpbook.env
+    permissions: "0600"
+    content: |
+      DATABASE_URL=PASTE_NEON_DIRECT_CONNECTION_STRING_HERE
+runcmd:
+  - git clone https://github.com/patrickballard/perpbook.git /opt/perpbook
+  - install -m 600 /opt/perpbook.env /opt/perpbook/.env
+  - rm /opt/perpbook.env
+  - cd /opt/perpbook && docker compose -f docker-compose.worker.yml up -d --build
