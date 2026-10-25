@@ -124,7 +124,10 @@ loop:
     limit 1 for update skip locked
   syncWallet()
   on 429 or an error: back off this wallet, store sync_error, keep going
+  nothing due: sleep until the next wallet is due, at most 10 minutes
 ```
+
+Sleeping until the next wallet is due, instead of checking every few seconds, lets a scale-to-zero database such as Neon suspend between syncs. A newly saved wallet waits at most 10 minutes for its first sync, and the dashboard shows it live in the meantime.
 
 `skip locked` lets several workers (and several IPs) share one database later without double work. First syncs go through the same queue and simply cost more of the budget.
 
@@ -142,12 +145,14 @@ Use one setup for both the hosted version and self-hosting, so the two can't dri
 | | Hosted | Self-hosted |
 |---|---|---|
 | App | Vercel, as today | `app` container (`next start`) |
-| Worker | The same image on a small always-on box (Fly.io, Railway or a €5 VPS) running `npm run worker` | `worker` container, same image |
-| Database | Managed Postgres (Neon or Supabase) | `postgres` container |
+| Worker | The image's `worker` target on a small VPS with its own IPv4 (e.g. Hetzner, Ashburn) | `worker` container, same target |
+| Database | Neon Postgres, US East | `postgres` container |
+
+Step-by-step setup: [deploy.md](deploy.md). The worker needs an IP address nobody else uses, because Hyperliquid's rate limit is per IP. Platforms that send outbound traffic from shared, NAT'd addresses (Fly.io and Railway by default) would put other apps on the same budget, so a plain VPS is the simpler choice.
 
 Why the worker shouldn't run as a Vercel Cron job: the free (Hobby) plan only runs cron once a day; functions have time limits, while a first sync can take minutes because of the rate budget; and Vercel's outgoing IPs change, which makes the per-IP budget impossible to manage. An always-on worker with one fixed IP is simple and predictable. Adding a second worker on another IP doubles capacity.
 
-Dependencies: [`pg`](https://node-postgres.com) and plain numbered `.sql` migration files run by a short script, with no ORM. Tests run against [PGlite](https://pglite.dev), which is real Postgres compiled to WebAssembly, so CI and contributors don't need a database server. Both are reached through a small `Db` interface (`query(text, params)` plus `transaction(fn)`).
+Dependencies: [`pg`](https://node-postgres.com) and numbered migrations kept in code (`src/lib/db/migrations.ts`), with no ORM. Tests run against [PGlite](https://pglite.dev), which is real Postgres compiled to WebAssembly, so CI and contributors don't need a database server. Both are reached through a small `Db` interface (`query(text, params)` plus `transaction(fn)`).
 
 ## Prerequisite: stable trade keys
 
@@ -175,6 +180,6 @@ For a trade that was already open when history starts, the "first fill" is just 
 
 ## Decisions needed
 
-1. **Where the hosted worker and database run.** Proposal: Fly.io worker plus Neon Postgres.
+1. ~~**Where the hosted worker and database run.**~~ Decided: Neon Postgres plus a VPS for the worker (see [deploy.md](deploy.md)).
 2. **Phase-1 tracking limits without accounts.** Proposal: 3 wallets per IP per day, 2,000 tracked wallets in total until accounts exist.
 3. **What free users see in phase 3.** Proposal: the last 90 days.

@@ -1,0 +1,16 @@
+# The sync worker alone, for a server whose database lives elsewhere (e.g. Neon).
+# Put DATABASE_URL in a .env file next to this one, then:
+#   docker compose -f docker-compose.worker.yml up -d --build
+# Run one worker per IP address: Hyperliquid's rate limit is per IP. See docs/deploy.md.
+services:
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file: .env
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

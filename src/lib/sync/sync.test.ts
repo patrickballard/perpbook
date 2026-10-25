@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { testDb } from "../db/testing";
-import { claimDueWallet, type Cursor, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, trackWallet } from "../db/store";
+import { claimDueWallet, type Cursor, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, nextDueAt, trackWallet } from "../db/store";
 import { normaliseFills } from "../hyperliquid/normalise";
 import type { HlFill } from "../hyperliquid/types";
 import { buildTrades } from "../engine/trades";
 import { FakeHyperliquid } from "./fakeHyperliquid";
-import { nextInterval, syncWallet } from "./sync";
+import { IDLE_WAIT_MAX, idleWait, nextInterval, syncWallet } from "./sync";
 
 const A = "0x" + "a".repeat(40);
 const H = 3_600_000;
@@ -123,5 +123,22 @@ describe("store", () => {
     expect(decodeCursor(encodeCursor({ time: 5, id: "1-0xab" }))).toEqual({ time: 5, id: "1-0xab" });
     expect(decodeCursor("nope")).toBeNull();
     expect(decodeCursor(null)).toBeNull();
+  });
+});
+
+describe("idle worker", () => {
+  it("sleeps until the next wallet is due, within limits", () => {
+    expect(idleWait(null, T0)).toBe(IDLE_WAIT_MAX);
+    expect(idleWait(T0 + 3 * 60_000, T0)).toBe(3 * 60_000);
+    expect(idleWait(T0 + 6 * H, T0)).toBe(IDLE_WAIT_MAX);
+    expect(idleWait(T0 - 5_000, T0)).toBe(1_000); // overdue: look again almost at once
+  });
+
+  it("knows when the next wallet is due", async () => {
+    const db = await testDb();
+    expect(await nextDueAt(db)).toBeNull();
+    await trackWallet(db, A, T0);
+    await trackWallet(db, "0x" + "b".repeat(40), T0 - 60_000);
+    expect(await nextDueAt(db)).toBe(T0 - 60_000);
   });
 });

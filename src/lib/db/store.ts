@@ -176,3 +176,9 @@ export async function historyPage<T>(
   const last = rows.at(-1);
   return { rows: rows.map((r) => r.raw), next: rows.length === limit && last ? { time: Number(last.time), id: last.id } : null };
 }
+
+/** When the next wallet comes due (ms), or null if nothing is tracked. */
+export async function nextDueAt(db: Db): Promise<number | null> {
+  const { rows } = await db.query<{ at: number | null }>("select extract(epoch from min(next_sync_at)) * 1000 as at from wallets");
+  return rows[0]?.at == null ? null : Number(rows[0].at);
+}

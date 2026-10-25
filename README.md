@@ -47,7 +47,7 @@ Without a database, perpbook runs entirely in the browser (`npm run dev` above).
 docker compose up -d
 ```
 
-That starts Postgres, the app on <http://localhost:3000> and the sync worker. To run them yourself instead, point `DATABASE_URL` at any Postgres and start both processes:
+That starts Postgres, the app on <http://localhost:3000> and the sync worker. For the hosted setup (Vercel, Neon and a small server for the worker), see [docs/deploy.md](docs/deploy.md). To run them yourself instead, point `DATABASE_URL` at any Postgres and start both processes:
 
 ```bash
 DATABASE_URL=postgres://… npm run migrate

@@ -64,3 +64,16 @@ export async function syncWallet(db: Db, client: HyperliquidClient, address: str
     return { newFills, newFunding, gap, nextSyncAt };
   });
 }
+
+/**
+ * How long the worker should sleep when nothing is due. Waking only when the next wallet
+ * is due lets a scale-to-zero database (Neon) suspend between syncs; checking every few
+ * seconds would keep it awake around the clock. The cap bounds how long a newly saved
+ * wallet waits for its first sync, which costs nothing: the dashboard shows live data
+ * until then.
+ */
+export const IDLE_WAIT_MAX = 10 * MIN;
+export function idleWait(nextDue: number | null, now: number): number {
+  if (nextDue == null) return IDLE_WAIT_MAX;
+  return Math.min(IDLE_WAIT_MAX, Math.max(1_000, nextDue - now));
+}
