@@ -1,4 +1,15 @@
-# One image for both the app and the sync worker; docker-compose.yml picks the command.
+# Two targets. The default (last) one is the app; `--target worker` is the sync worker
+# alone, which skips the Next.js build so it fits on the smallest server.
+
+FROM node:22-alpine AS worker
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY tsconfig.json ./
+COPY src ./src
+CMD ["npm", "run", "worker"]
+
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

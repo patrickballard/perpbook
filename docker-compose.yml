@@ -15,8 +15,9 @@ services:
     restart: unless-stopped
 
   worker:
-    build: .
-    command: ["npm", "run", "worker"]
+    build:
+      context: .
+      target: worker
     environment:
       DATABASE_URL: postgres://perpbook:perpbook@db:5432/perpbook
     depends_on:

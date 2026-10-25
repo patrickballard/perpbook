@@ -21,7 +21,8 @@ Everything between today's v0.1 and perpbook having real users who pay. Ordered 
 - [x] `POST /api/w/[address]/track` and `GET /api/w/[address]/history` (#5)
 - [x] Dashboard loads stored history plus the live delta; "Keep my history" button; missing-dates notice (#6)
 - [x] `docker-compose.yml` (app, worker, postgres) and a self-hosting section in the README (#6; not yet run, no Docker on the machine it was built on)
-- [ ] 👤 Create the hosted database (proposal: Neon) and worker host (proposal: Fly.io); set `DATABASE_URL` on Vercel
+- [x] Hosting plan and deployment guide: Neon for the database, a small VPS for the worker ([deploy.md](deploy.md))
+- [ ] 👤 Create the Neon project and the VPS, and set `DATABASE_URL` on Vercel, following [deploy.md](deploy.md)
 - [ ] 👤 Try `docker compose up` once
 
 ## 3. Things that bring people in

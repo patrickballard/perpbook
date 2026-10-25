@@ -3,15 +3,23 @@
 
 import { serverDb } from "../lib/db/server";
 import { migrate } from "../lib/db/migrations";
-import { claimDueWallet, failSync } from "../lib/db/store";
+import { claimDueWallet, failSync, nextDueAt } from "../lib/db/store";
 import { HyperliquidClient } from "../lib/hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "../lib/sync/budget";
-import { syncWallet } from "../lib/sync/sync";
+import { idleWait, syncWallet } from "../lib/sync/sync";
 
-const IDLE_POLL_MS = 5_000;
 const RETRY_AFTER_ERROR_MS = 15 * 60_000;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Resolves early when the worker is told to stop, so shutdown doesn't wait out a long idle sleep.
+let wake: () => void = () => {};
+const sleep = (ms: number) =>
+  new Promise<void>((r) => {
+    const t = setTimeout(r, ms);
+    wake = () => {
+      clearTimeout(t);
+      r();
+    };
+  });
 const log = (msg: string, extra: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ at: new Date().toISOString(), msg, ...extra }));
 
@@ -26,13 +34,17 @@ async function main() {
   const client = new HyperliquidClient(budgetedFetch(budget));
 
   let stopping = false;
-  for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => (stopping = true));
+  for (const sig of ["SIGINT", "SIGTERM"] as const)
+    process.on(sig, () => {
+      stopping = true;
+      wake();
+    });
   log("worker started", { weightPerMinute: Number(process.env.HL_WEIGHT_PER_MINUTE ?? 1_000) });
 
   while (!stopping) {
     const address = await claimDueWallet(db);
     if (!address) {
-      await sleep(IDLE_POLL_MS);
+      await sleep(idleWait(await nextDueAt(db), Date.now()));
       continue;
     }
     const started = Date.now();
