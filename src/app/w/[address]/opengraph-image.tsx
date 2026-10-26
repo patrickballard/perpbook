@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { HyperliquidClient, isAddress } from "@/lib/hyperliquid/client";
-import { money, shortAddress } from "@/lib/format";
+import { moneyHeadline, shortAddress } from "@/lib/format";
 import { compactUsd, demoShareStats, shareStats, sparkline, type ShareStats } from "@/lib/share";
 
 export const alt = "perpbook trading journal: all-time PnL for this wallet";
@@ -69,13 +69,13 @@ export default async function Image({ params }: { params: Promise<{ address: str
         {stats ? (
           <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
             <div style={{ display: "flex", marginTop: 52, fontSize: 30, color: C.muted }}>All-time PnL on Hyperliquid perps, after fees and funding</div>
-            <div style={{ display: "flex", fontFamily: "GeistMono", fontSize: 128, color: tone(stats.allTime), marginTop: 4, letterSpacing: -4 }}>
-              {money(stats.allTime)}
+            <div style={{ display: "flex", fontFamily: "GeistMono", fontSize: 128, color: tone(stats.allTime), marginTop: 4, letterSpacing: -4, whiteSpace: "nowrap" }}>
+              {moneyHeadline(stats.allTime)}
             </div>
             <div style={{ display: "flex", gap: 40, fontSize: 30, color: C.muted, marginTop: 4 }}>
               {stats.month != null && (
                 <div style={{ display: "flex", gap: 12 }}>
-                  30 days <span style={{ color: tone(stats.month), fontFamily: "GeistMono" }}>{money(stats.month)}</span>
+                  30 days <span style={{ color: tone(stats.month), fontFamily: "GeistMono" }}>{moneyHeadline(stats.month)}</span>
                 </div>
               )}
               <div style={{ display: "flex", gap: 12 }}>

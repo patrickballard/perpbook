@@ -64,3 +64,13 @@ export function moneyShort(v: number): string {
   if (a < 9.95) return `${s}$${a.toFixed(1)}`;
   return money(v, { compact: true, whole: true });
 }
+
+/** A headline amount that never needs to wrap: compact from $100k ("−$23.39M"), exact below. */
+export function moneyHeadline(v: number): string {
+  const s = v > 0.004 ? "+" : v < -0.004 ? "−" : "";
+  const a = Math.abs(v);
+  if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1e5) return `${s}$${(a / 1e3).toFixed(1)}k`;
+  return money(v);
+}
