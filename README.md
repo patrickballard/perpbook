@@ -1,9 +1,15 @@
 # perpbook
 
-**The open-source trading journal for perp traders.** Paste a Hyperliquid wallet address and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is. No API keys, no CSVs, no manual entry.
+[![CI](https://github.com/patrickballard/perpbook/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/perpbook/actions/workflows/ci.yml)
+[![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue)](LICENSE)
 
-- **Trades, not fills.** Scale in three times and out twice and it's still one trade. Flips are split into a closed trade and a new one; fees and funding go to the right trade.
-- **Real PnL.** Net of fees and hourly funding, by day, by coin, long vs short, by hour and by weekday.
+**The open-source trading journal for Hyperliquid.** Paste a wallet address and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is. No API keys, no CSVs, no manual entry.
+
+**[Try it on perpbook.vercel.app](https://perpbook.vercel.app)** · [Demo account](https://perpbook.vercel.app/w/demo) · [Self-host in one command](#self-hosting)
+
+- **Trades, not fills.** Scale in three times and out twice and it's still one trade. Flips are split into a closed trade and a new one; fees and funding go to the right trade. On one active wallet, 7,800 fills became 773 trades; grouped naively they look like 3,244.
+- **Real PnL you can check.** Net of fees and hourly funding, by day, coin, side, hour and weekday. Realised plus open PnL is compared with Hyperliquid's own all-time figure, and the dashboard says when they match.
+- **Full history.** Hyperliquid only serves your latest 10,000 fills. Save a wallet and perpbook keeps every fill from then on.
 - **Read-only.** perpbook only reads public data for an address. It never asks for keys or signatures.
 - **Yours.** AGPL-3.0. Self-host it for free, or use the hosted version.
 
@@ -75,6 +81,7 @@ The engine is covered for simple round trips, scaling in and out, flips, positio
 
 - [x] Wallet sync, trade reconstruction, dashboard, PnL calendar, breakdowns
 - [x] Postgres storage and a sync worker (permanent history past 10,000 fills)
+- [x] Totals checked against Hyperliquid's own PnL; share cards for wallet links
 - [ ] Accounts: sign in, follow several wallets
 - [ ] Notes, setup tags and mistake tags on every trade; R multiples from a planned stop
 - [ ] CSV import with a TradeZella preset

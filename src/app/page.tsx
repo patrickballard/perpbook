@@ -1,37 +1,48 @@
+import Image from "next/image";
 import Link from "next/link";
 import { AddressForm } from "@/components/AddressForm";
 
+const REPO = "https://github.com/patrickballard/perpbook";
+
+// Measured on a live, active Hyperliquid wallet in October 2026 (pull request #1).
+const proof = [
+  ["7,800 fills", "773 trades", "One active wallet's fills, rebuilt into the trades they actually were. Grouped naively, the same fills look like 3,244 trades."],
+  ["Your PnL", "checked against Hyperliquid", "Realised plus open PnL is compared with Hyperliquid's own figure, so you can see the numbers add up."],
+  ["10,000 fills", "and nothing lost", "Hyperliquid only serves your latest 10,000 fills. Save your wallet and perpbook keeps every one after that."],
+];
+
 const points = [
-  ["Paste an address, done", "No API keys, no CSVs, no manual entry. Trades sync straight from Hyperliquid's public data, Invo and builder perps included."],
-  ["Trades, not fills", "Scale in three times and out twice and it's still one trade. Flips, fees and funding are split to the right one."],
-  ["See what actually works", "Win rate, profit factor and PnL by coin, side, hour and weekday, so you can stop trading the setups that lose."],
-  ["Open source", "AGPL-licensed. Self-host it for free, read every line that touches your data, or use the hosted version."],
+  ["Trades, not fills", "Scale in three times and out twice and it's still one trade. Flips are split in two, and fees and funding go to the right trade."],
+  ["Real PnL", "After fees and hourly funding, by day, coin, side, hour and weekday, including open positions on builder-deployed (HIP-3) markets."],
+  ["See what works", "Win rate, profit factor and expectancy, a PnL calendar and an equity curve, so you can stop trading the setups that lose."],
+  ["Read-only and open source", "Paste an address: no keys, no signatures, no CSVs. AGPL-licensed, so you can read every line or host it yourself."],
 ];
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-5xl px-4 sm:px-6">
-      <header className="flex items-center h-16">
-        <span className="font-semibold tracking-tight text-lg">
+    <main className="mx-auto max-w-6xl px-4 sm:px-6">
+      <header className="flex items-center gap-5 h-16">
+        <span className="font-semibold tracking-tight text-lg mr-auto">
           perpbook<span className="text-accent">.</span>
         </span>
-        <a href="https://github.com/patrickballard/perpbook" className="ml-auto text-sm text-ink-2 hover:text-ink">
+        <Link href="/w/demo" className="text-sm text-ink-2 hover:text-ink">
+          Demo
+        </Link>
+        <a href={REPO} className="text-sm text-ink-2 hover:text-ink">
           GitHub
         </a>
       </header>
 
-      <section className="pt-14 sm:pt-24 pb-14 max-w-2xl">
-        <p className="eyebrow mb-4">Open-source trading journal for perps</p>
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05]">
-          Your perp trades, journaled the moment you take them.
-        </h1>
+      <section className="pt-12 sm:pt-20 pb-12 max-w-2xl">
+        <p className="eyebrow mb-4">Open-source trading journal for Hyperliquid</p>
+        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05]">Every perp trade, rebuilt from your wallet.</h1>
         <p className="mt-5 text-lg text-ink-2 max-w-xl">
-          Paste a Hyperliquid wallet and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is.
+          Paste a Hyperliquid address and see your real PnL after fees and funding, trade by trade, and where your edge actually is.
         </p>
         <div className="mt-8 max-w-xl">
           <AddressForm />
           <p className="text-sm text-muted mt-3">
-            Read-only and public data only. Or{" "}
+            Read-only, public data only. Or{" "}
             <Link href="/w/demo" className="text-accent underline underline-offset-2">
               look around a demo account
             </Link>
@@ -40,7 +51,23 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid sm:grid-cols-2 gap-3 pb-20">
+      <Link href="/w/demo" aria-label="Open the demo account" className="block rounded-2xl border border-line overflow-hidden shadow-[0_24px_60px_-28px_rgba(0,0,0,0.35)] hover:border-[var(--axis)] transition-colors">
+        <Image src="/dashboard-light.png" alt="The perpbook dashboard for the demo account: net PnL, win rate, equity curve and PnL calendar" width={2560} height={1480} sizes="(min-width: 1152px) 1104px, 100vw" className="w-full h-auto dark:hidden" priority />
+        <Image src="/dashboard-dark.png" alt="The perpbook dashboard for the demo account: net PnL, win rate, equity curve and PnL calendar" width={2560} height={1480} sizes="(min-width: 1152px) 1104px, 100vw" className="w-full h-auto hidden dark:block" priority />
+      </Link>
+
+      <section className="grid md:grid-cols-3 gap-3 pt-14">
+        {proof.map(([big, small, body]) => (
+          <div key={big} className="card p-5">
+            <p className="text-2xl font-semibold tracking-tight">
+              {big} <span className="text-accent">→</span> {small}
+            </p>
+            <p className="text-sm text-ink-2 mt-2 leading-relaxed">{body}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid sm:grid-cols-2 gap-3 pt-3 pb-16">
         {points.map(([title, body]) => (
           <div key={title} className="card p-5">
             <h2 className="font-semibold">{title}</h2>
@@ -48,6 +75,24 @@ export default function Home() {
           </div>
         ))}
       </section>
+
+      <section className="card p-6 sm:p-8 mb-16 flex flex-col sm:flex-row sm:items-center gap-5">
+        <div className="mr-auto">
+          <h2 className="text-xl font-semibold tracking-tight">See your own trades</h2>
+          <p className="text-sm text-ink-2 mt-1">Works for Hyperliquid perps, front-ends built on it such as Invo, and HIP-3 markets.</p>
+        </div>
+        <div className="sm:w-[28rem]">
+          <AddressForm />
+        </div>
+      </section>
+
+      <footer className="border-t border-line py-8 text-xs text-muted flex flex-wrap gap-x-5 gap-y-2">
+        <span>perpbook is an analytics tool, not financial advice.</span>
+        <a href={REPO} className="underline underline-offset-2 hover:text-ink-2">
+          Open source on GitHub
+        </a>
+        <span>AGPL-3.0</span>
+      </footer>
     </main>
   );
 }

@@ -33,7 +33,7 @@ export function AddressForm() {
           spellCheck={false}
           autoComplete="off"
           aria-label="Wallet address"
-          className="num flex-1 h-12 px-4 rounded-xl border border-line bg-surface text-[15px] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--accent)_25%,transparent)]"
+          className="num w-full sm:flex-1 h-12 px-4 rounded-xl border border-line bg-surface text-[15px] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--accent)_25%,transparent)]"
         />
         <button type="submit" className="h-12 px-5 rounded-xl bg-ink text-page font-medium hover:opacity-90">
           Open my journal
