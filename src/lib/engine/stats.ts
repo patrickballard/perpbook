@@ -110,7 +110,19 @@ export type Day = {
   net: number;
 };
 
-export const dayKey = (ms: number, timeZone?: string) => dayFmt(timeZone).format(new Date(ms));
+// Every time zone's offset is a multiple of 15 minutes, so the date only changes on a quarter
+// hour; funding is hourly, so tens of thousands of timestamps share a few thousand quarters.
+const QUARTER_HOUR = 15 * 60_000;
+const dayKeys = new Map<string | undefined, Map<number, string>>();
+
+export const dayKey = (ms: number, timeZone?: string) => {
+  let byQuarter = dayKeys.get(timeZone);
+  if (!byQuarter) dayKeys.set(timeZone, (byQuarter = new Map()));
+  const q = Math.floor(ms / QUARTER_HOUR);
+  let key = byQuarter.get(q);
+  if (key === undefined) byQuarter.set(q, (key = dayFmt(timeZone).format(new Date(q * QUARTER_HOUR))));
+  return key;
+};
 
 /**
  * Account-level daily PnL straight from fills and funding (realised − fees + funding),
