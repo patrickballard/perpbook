@@ -145,10 +145,10 @@ Use one setup for both the hosted version and self-hosting, so the two can't dri
 | | Hosted | Self-hosted |
 |---|---|---|
 | App | Vercel, as today | `app` container (`next start`) |
-| Worker | The image's `worker` target on a small VPS with its own IPv4 (e.g. Hetzner, Ashburn) | `worker` container, same target |
+| Worker | A scheduled GitHub Actions job (`npm run worker -- --once` every half hour, free); a small VPS once it needs to be continuous | `worker` container |
 | Database | Neon Postgres, US East | `postgres` container |
 
-Step-by-step setup: [deploy.md](deploy.md). The worker needs an IP address nobody else uses, because Hyperliquid's rate limit is per IP. Platforms that send outbound traffic from shared, NAT'd addresses (Fly.io and Railway by default) would put other apps on the same budget, so a plain VPS is the simpler choice.
+Step-by-step setup: [deploy.md](deploy.md). The worker needs an IP address nobody else is using, because Hyperliquid's rate limit is per IP. A GitHub Actions run gets a fresh machine each time, and a VPS has its own address. Platforms that send outbound traffic from shared, NAT'd addresses (Fly.io and Railway by default) would put other apps on the same budget.
 
 Why the worker shouldn't run as a Vercel Cron job: the free (Hobby) plan only runs cron once a day; functions have time limits, while a first sync can take minutes because of the rate budget; and Vercel's outgoing IPs change, which makes the per-IP budget impossible to manage. An always-on worker with one fixed IP is simple and predictable. Adding a second worker on another IP doubles capacity.
 
@@ -180,6 +180,6 @@ For a trade that was already open when history starts, the "first fill" is just 
 
 ## Decisions needed
 
-1. ~~**Where the hosted worker and database run.**~~ Decided: Neon Postgres plus a VPS for the worker (see [deploy.md](deploy.md)).
+1. ~~**Where the hosted worker and database run.**~~ Decided: Neon Postgres plus a scheduled GitHub Actions job, at no cost; a VPS later if needed (see [deploy.md](deploy.md)).
 2. **Phase-1 tracking limits without accounts.** Proposal: 3 wallets per IP per day, 2,000 tracked wallets in total until accounts exist.
 3. **What free users see in phase 3.** Proposal: the last 90 days.

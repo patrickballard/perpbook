@@ -1,0 +1,48 @@
+# The sync worker as a free scheduled job: every half hour, sync the saved wallets that
+# are due, then stop. Needs a DATABASE_URL repository secret; without one it does nothing.
+# Each run gets a fresh machine, so it has Hyperliquid's per-IP rate limit to itself.
+# Logs here are public, so the worker prints totals only, never wallet addresses.
+name: Sync wallets
+
+on:
+  schedule:
+    - cron: "7,37 * * * *" # GitHub often starts these late; off the hour avoids the busiest minutes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-wallets
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Check for a database
+        id: check
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::No DATABASE_URL secret, so there's nothing to sync. See docs/deploy.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+        if: steps.check.outputs.ready == 'true'
+      - name: Sync what's due
+        if: steps.check.outputs.ready == 'true'
+        run: npm run worker -- --once
+        env:
+          WORKER_MAX_MINUTES: "20"
