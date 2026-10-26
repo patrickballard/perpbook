@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useWallet } from "@/lib/useWallet";
 import { RATE_LIMITED } from "@/lib/hyperliquid/client";
-import { duration, money, pct, price, ratio, shortAddress, size } from "@/lib/format";
+import { compactUsd } from "@/lib/share";
+import type { OpenPosition } from "@/lib/hyperliquid/types";
+import { duration, money, moneyHeadline, pct, price, ratio, shortAddress, size } from "@/lib/format";
 import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
@@ -37,6 +39,26 @@ function Section({ title, hint, children, className = "" }: { title: string; hin
 
 const toneOf = (v: number | null | undefined) => (v == null ? "flat" : v > 0.004 ? "up" : v < -0.004 ? "down" : "flat");
 
+function OpenPositions({ positions }: { positions: OpenPosition[] }) {
+  return (
+    <div className="space-y-1.5">
+      {positions.map((p) => (
+        <div key={p.coin} className="flex items-center gap-3 text-sm">
+          <span className="font-medium w-20 sm:w-24 shrink-0 truncate" title={p.coin}>
+            {p.coin}
+          </span>
+          <span className={`shrink-0 ${p.size > 0 ? "up" : "down"}`}>{p.size > 0 ? "Long" : "Short"}</span>
+          <span className="num text-ink-2 min-w-0 truncate whitespace-nowrap">
+            <span className="hidden sm:inline">{size(p.size)} </span>@ {price(p.entryPx)}
+            {p.leverage ? <span className="hidden sm:inline"> · {p.leverage}x</span> : null}
+          </span>
+          <span className={`num ml-auto shrink-0 whitespace-nowrap font-medium ${toneOf(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Dashboard({ address }: { address: string }) {
   const { status, error, raw, derived, sync, demo, track, tracking, trackError } = useWallet(address);
 
@@ -57,7 +79,7 @@ export function Dashboard({ address }: { address: string }) {
         <ShareCardButton
           filename={`perpbook-${demo ? "demo" : `${address.slice(0, 6)}-${address.slice(-4)}`}.png`}
           data={
-            derived && typeof window !== "undefined"
+            derived && raw?.complete && typeof window !== "undefined"
               ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, equity: derived.equity, reconciliation: derived.reconciliation, host: window.location.host })
               : null
           }
@@ -81,7 +103,7 @@ export function Dashboard({ address }: { address: string }) {
         </div>
       )}
 
-      {raw && <HistoryNotice storage={raw.storage} rawFillCount={raw.rawFillCount} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
+      {raw?.complete && <HistoryNotice storage={raw.storage} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
 
       {!derived && status === "loading" && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -91,7 +113,31 @@ export function Dashboard({ address }: { address: string }) {
         </div>
       )}
 
-      {derived && raw && (
+      {raw && !raw.complete && (
+        <div className="space-y-4">
+          <div className="card px-4 py-3 text-sm text-ink-2">
+            <span className="font-medium text-ink">This wallet is too active to rebuild trade by trade here.</span> It has more fills than perpbook
+            loads in one go{raw.fills[0] ? ` (over ${raw.fills.length.toLocaleString("en-GB")} since ${new Date(raw.fills[0].time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })})` : ""}, and
+            numbers rebuilt from part of its history would be wrong. These are Hyperliquid&apos;s own totals instead.
+          </div>
+          {raw.summary ? (
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <Kpi label="All-time PnL" value={moneyHeadline(raw.summary.allTime)} tone={toneOf(raw.summary.allTime)} sub="perps, after fees and funding · from Hyperliquid" />
+              <Kpi label="Last 30 days" value={raw.summary.month == null ? "–" : moneyHeadline(raw.summary.month)} tone={toneOf(raw.summary.month)} sub="from Hyperliquid" />
+              <Kpi label="Volume" value={compactUsd(raw.summary.volume)} sub="all-time perps · from Hyperliquid" />
+            </div>
+          ) : (
+            <p className="text-sm text-muted px-1">Hyperliquid&apos;s totals aren&apos;t available for this wallet right now.</p>
+          )}
+          {raw.positions.length > 0 && (
+            <Section title="Open now" hint="Live from Hyperliquid">
+              <OpenPositions positions={raw.positions} />
+            </Section>
+          )}
+        </div>
+      )}
+
+      {derived && raw?.complete && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi
@@ -135,21 +181,7 @@ export function Dashboard({ address }: { address: string }) {
               {raw.positions.length > 0 && (
                 <div className="mt-5">
                   <div className="eyebrow mb-2">Open now</div>
-                  <div className="space-y-1.5">
-                    {raw.positions.map((p) => (
-                      <div key={p.coin} className="flex items-center gap-3 text-sm">
-                        <span className="font-medium w-20 sm:w-24 shrink-0 truncate" title={p.coin}>
-                          {p.coin}
-                        </span>
-                        <span className={`shrink-0 ${p.size > 0 ? "up" : "down"}`}>{p.size > 0 ? "Long" : "Short"}</span>
-                        <span className="num text-ink-2 min-w-0 truncate whitespace-nowrap">
-                          <span className="hidden sm:inline">{size(p.size)} </span>@ {price(p.entryPx)}
-                          {p.leverage ? <span className="hidden sm:inline"> · {p.leverage}x</span> : null}
-                        </span>
-                        <span className={`num ml-auto shrink-0 whitespace-nowrap font-medium ${toneOf(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <OpenPositions positions={raw.positions} />
                 </div>
               )}
             </Section>

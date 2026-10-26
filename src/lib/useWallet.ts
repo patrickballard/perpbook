@@ -8,6 +8,7 @@ import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
 import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./engine/stats";
 import { demoAccount } from "./demo";
+import { shareStats, type ShareStats } from "./share";
 import { getStorage, getStoredHistory, lastTime, mergeById, requestTracking, type Storage } from "./history";
 
 export type WalletStatus = "idle" | "loading" | "ready" | "error";
@@ -22,10 +23,23 @@ type Raw = {
   /** When Hyperliquid's PnL record starts, to tell whether we have the account's whole history. */
   hyperliquidSince: number | null;
   syncedAt: number;
-  /** Fills Hyperliquid returned; near 10,000 means older ones are dropping off. */
+  /** Fills Hyperliquid returned in this load. */
   rawFillCount: number;
   storage: Storage;
+  /**
+   * Whether we have every fill and funding payment. Very active wallets have more than the
+   * browser loads; rebuilt numbers for them would be wrong, so the dashboard shows
+   * Hyperliquid's own totals (summary) instead.
+   */
+  complete: boolean;
+  summary: ShareStats | null;
 };
+
+// How much the browser loads from Hyperliquid before calling a wallet too big: 20,000 fills and
+// 20,000 funding payments (a trader with ~50 positions open pays about 1,200 a day), together at
+// most about 3 minutes of rate budget.
+const FILL_PAGES = 10;
+const FUNDING_PAGES = 40;
 
 // Pace requests under Hyperliquid's per-IP limit (1,200 weight a minute) instead of bursting
 // past it: a long-lived wallet's first load needs more than a minute's budget, and bursting
@@ -41,7 +55,12 @@ async function liveState(address: string) {
     client.allClearinghouses(address).catch(() => []),
     client.portfolio(address).catch(() => null),
   ]);
-  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio), hyperliquidSince: perpHistoryStart(portfolio) };
+  return {
+    ...normalisePositions(chs),
+    hyperliquidPnl: allTimePerpPnl(portfolio),
+    hyperliquidSince: perpHistoryStart(portfolio),
+    summary: shareStats(portfolio),
+  };
 }
 
 export function useWallet(address: string) {
@@ -56,7 +75,7 @@ export function useWallet(address: string) {
     try {
       if (demo) {
         const d = demoAccount();
-        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null, hyperliquidSince: null };
+        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null, hyperliquidSince: null, summary: null };
         setRaw({
           fills: normaliseFills(d.fills),
           funding: normaliseFunding(d.funding),
@@ -64,6 +83,7 @@ export function useWallet(address: string) {
           syncedAt: Date.now(),
           rawFillCount: d.fills.length,
           storage: { state: "off" },
+          complete: true,
         });
       } else {
         const storage = await getStorage(address);
@@ -72,32 +92,35 @@ export function useWallet(address: string) {
           const stored = await getStoredHistory(address);
           const since = lastTime(stored.fills);
           const [fills, funding] = await Promise.all([
-            client.fills(address, since ?? 0),
-            client.funding(address, lastTime(stored.funding) ?? since ?? 0),
+            client.fills(address, since ?? 0, FILL_PAGES),
+            client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
           ]);
           const live = await liveState(address);
           setRaw({
-            fills: mergeById(stored.fills, normaliseFills(fills)),
-            funding: mergeById(stored.funding, normaliseFunding(funding)),
+            fills: mergeById(stored.fills, normaliseFills(fills.rows)),
+            funding: mergeById(stored.funding, normaliseFunding(funding.rows)),
             ...live,
             syncedAt: Date.now(),
-            rawFillCount: fills.length,
+            rawFillCount: fills.rows.length,
             storage,
+            complete: stored.complete && fills.complete && funding.complete,
           });
         } else {
           // Funding from before the oldest fill Hyperliquid still serves can't be matched to a trade,
           // and for long-lived wallets it's most of the requests: James Wynn's ran past the per-IP
           // rate limit. Start where the fills start, as the sync worker does.
-          const fills = await client.fills(address);
-          const funding = await client.funding(address, fills[0]?.time ?? 0);
+          const fills = await client.fills(address, 0, FILL_PAGES);
+          // Too big: skip funding, since the rebuilt numbers won't be shown anyway.
+          const funding = fills.complete ? await client.funding(address, fills.rows[0]?.time ?? 0, FUNDING_PAGES) : { rows: [], complete: false };
           const live = await liveState(address);
           setRaw({
-            fills: normaliseFills(fills),
-            funding: normaliseFunding(funding),
+            fills: normaliseFills(fills.rows),
+            funding: normaliseFunding(funding.rows),
             ...live,
             syncedAt: Date.now(),
-            rawFillCount: fills.length,
+            rawFillCount: fills.rows.length,
             storage,
+            complete: fills.complete && funding.complete,
           });
         }
       }

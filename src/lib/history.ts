@@ -16,10 +16,15 @@ export async function getStorage(address: string, f: FetchLike = fetch): Promise
   }
 }
 
-async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchLike): Promise<T[]> {
+/** Saved rows per kind the browser loads: 10 pages of 5,000. More would be slow to download and rebuild. */
+const STORED_PAGES = 10;
+
+async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchLike): Promise<{ rows: T[]; complete: boolean }> {
   const out: T[] = [];
   let after: string | null = null;
+  let pages = 0;
   do {
+    if (pages++ === STORED_PAGES) return { rows: out, complete: false };
     const q: string = after ? `&after=${encodeURIComponent(after)}` : "";
     const r = await f(`/api/w/${address}/history?kind=${kind}${q}`, { cache: "no-store" });
     if (!r.ok) throw new Error(`Couldn't load saved history (${r.status})`);
@@ -27,12 +32,12 @@ async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchL
     out.push(...(page.rows as T[]));
     after = page.next;
   } while (after);
-  return out;
+  return { rows: out, complete: true };
 }
 
 export async function getStoredHistory(address: string, f: FetchLike = fetch) {
   const [fills, funding] = await Promise.all([allPages<Fill>(address, "fills", f), allPages<FundingEvent>(address, "funding", f)]);
-  return { fills, funding };
+  return { fills: fills.rows, funding: funding.rows, complete: fills.complete && funding.complete };
 }
 
 /** Start saving this wallet's history. Resolves to an error message, or null on success. */

@@ -9,7 +9,7 @@
 
 - **Trades, not fills.** Scale in three times and out twice and it's still one trade. Flips are split into a closed trade and a new one; fees and funding go to the right trade. On one active wallet, 7,800 fills became 773 trades; grouped naively they look like 3,244.
 - **Real PnL you can check.** Net of fees and hourly funding, by day, coin, side, hour and weekday. Realised plus open PnL is compared with Hyperliquid's own all-time figure, and the dashboard says when they match.
-- **Full history.** Hyperliquid only serves your latest 10,000 fills. Save a wallet and perpbook keeps every fill from then on.
+- **Your own copy.** Hyperliquid's API only guarantees your latest 10,000 fills. Save a wallet and perpbook keeps a copy of every fill from then on, which also loads in seconds.
 - **Read-only.** perpbook only reads public data for an address. It never asks for keys or signatures.
 - **Yours.** AGPL-3.0. Self-host it for free, or use the hosted version.
 
@@ -43,7 +43,7 @@ src/components/        dashboard, equity chart, PnL calendar, breakdown bars, tr
 
 **Trade reconstruction.** A trade opens when a coin's position leaves zero and closes when it returns to zero. Hyperliquid reports the position size before every fill (`startPosition`), which perpbook treats as the source of truth. That also catches gaps: if the reported size disagrees with what we've tracked, the trade is closed and flagged `partial` rather than silently producing wrong numbers.
 
-**The 10,000-fill limit.** Hyperliquid's API only exposes your most recent 10,000 fills, so very active traders see older history drop off. When perpbook has a database, a wallet can be saved with "Keep my history": a worker then stores every new fill and funding payment, and the dashboard shows stored history plus anything newer straight from Hyperliquid. If more than 10,000 fills happen between two saves, the dates that couldn't be recovered are shown. Design notes: [docs/permanent-history.md](docs/permanent-history.md).
+**History and very active wallets.** Hyperliquid's API docs say only your most recent 10,000 fills are available. In practice (October 2026) older fills are still served, but perpbook doesn't rely on that: when it has a database, a wallet can be saved with "Keep my history", and a worker stores every new fill and funding payment, so the dashboard loads stored history plus anything newer from Hyperliquid. Some wallets are too active to rebuild in a browser (whales can have hundreds of thousands of fills). perpbook loads up to 20,000 fills from Hyperliquid, or 50,000 saved ones, and if a wallet has more it shows Hyperliquid's own totals rather than numbers rebuilt from part of its history. Saved wallets are capped at 50,000 stored fills (`MAX_FILLS_PER_WALLET`). Design notes: [docs/permanent-history.md](docs/permanent-history.md).
 
 ## Self-hosting
 
@@ -67,6 +67,7 @@ DATABASE_URL=postgres://… npm run worker
 | `HL_WEIGHT_PER_MINUTE` | `1000` | The worker's share of Hyperliquid's 1,200 per-IP budget. Run one worker per IP. |
 | `TRACK_PER_IP_PER_DAY` | `3` | New wallets one visitor can save per day. |
 | `MAX_TRACKED_WALLETS` | `2000` | Stop accepting new wallets past this. |
+| `MAX_FILLS_PER_WALLET` | `50000` | Stop saving a wallet's fills past this, so one whale can't fill a free database. |
 | `SITE_URL` | unset | Public URL, e.g. `https://perpbook.example`, so share images get absolute links. Not needed on Vercel. |
 
 ## Tests
