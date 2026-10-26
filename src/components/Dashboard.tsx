@@ -61,6 +61,9 @@ function OpenPositions({ positions }: { positions: OpenPosition[] }) {
 
 export function Dashboard({ address }: { address: string }) {
   const { status, error, raw, derived, sync, demo, track, tracking, trackError, progress } = useWallet(address);
+  // Nothing to journal: no perp fills and nothing open. Usually the wrong address was pasted.
+  const empty = !!raw?.complete && raw.fills.length === 0 && raw.positions.length === 0;
+  const full = !!raw?.complete && !empty;
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
@@ -79,7 +82,7 @@ export function Dashboard({ address }: { address: string }) {
         <ShareCardButton
           filename={`perpbook-${demo ? "demo" : `${address.slice(0, 6)}-${address.slice(-4)}`}.png`}
           data={
-            derived && raw?.complete && typeof window !== "undefined"
+            derived && full && typeof window !== "undefined"
               ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, equity: derived.equity, reconciliation: derived.reconciliation, host: window.location.host })
               : null
           }
@@ -103,7 +106,7 @@ export function Dashboard({ address }: { address: string }) {
         </div>
       )}
 
-      {raw?.complete && <HistoryNotice storage={raw.storage} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
+      {full && raw && <HistoryNotice storage={raw.storage} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
 
       {status === "loading" && progress && (
         <p className="text-sm text-ink-2 mb-4 px-1" aria-live="polite">
@@ -143,7 +146,36 @@ export function Dashboard({ address }: { address: string }) {
         </div>
       )}
 
-      {derived && raw?.complete && (
+      {empty && raw && (
+        <div className="card p-6 sm:p-8 space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {raw.rawFillCount > 0 ? "Only spot trades on this address" : "No Hyperliquid trades found for this address"}
+          </h2>
+          {raw.rawFillCount > 0 ? (
+            <p className="text-sm text-ink-2 max-w-2xl">
+              This wallet has traded spot on Hyperliquid, but perpbook journals perpetuals only, and there are no perp trades here yet.
+            </p>
+          ) : (
+            <ul className="text-sm text-ink-2 max-w-2xl list-disc pl-5 space-y-1.5">
+              <li>Check it&apos;s the address you trade with on Hyperliquid. Your main account, not an API or agent wallet.</li>
+              <li>Trading through a front-end like Invo? Copy the wallet address it shows you; that&apos;s the one trading on Hyperliquid.</li>
+              <li>If you only just started, trades appear here as soon as your first one fills.</li>
+            </ul>
+          )}
+          <p className="text-sm">
+            <Link href="/" className="text-accent underline underline-offset-2">
+              Try another address
+            </Link>{" "}
+            <span className="text-muted">or</span>{" "}
+            <Link href="/w/demo" className="text-accent underline underline-offset-2">
+              look around the demo
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+
+      {derived && full && raw && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi

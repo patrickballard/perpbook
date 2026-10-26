@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { HyperliquidClient, isAddress } from "@/lib/hyperliquid/client";
 import { moneyHeadline, shortAddress } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import { compactUsd, demoShareStats, shareStats, sparkline, type ShareStats } from "@/lib/share";
 
 export const alt = "perpbook trading journal: all-time PnL for this wallet";
@@ -37,11 +38,7 @@ async function fonts() {
 
 /** Where the card says to go: the configured site, Vercel's production domain, or the repo. */
 function siteHost(): string {
-  const url = process.env.SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null);
-  try {
-    if (url) return new URL(url).host;
-  } catch {}
-  return "github.com/patrickballard/perpbook";
+  return siteUrl()?.host ?? "github.com/patrickballard/perpbook";
 }
 
 async function statsFor(address: string): Promise<ShareStats | null> {
