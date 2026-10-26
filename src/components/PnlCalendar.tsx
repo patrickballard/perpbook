@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Day } from "@/lib/engine/stats";
-import { money } from "@/lib/format";
+import { money, moneyShort } from "@/lib/format";
 
 const WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -88,7 +88,7 @@ export function PnlCalendar({ days }: { days: Day[] }) {
               <span className="text-[10px] sm:text-[11px] text-ink-2 leading-none">{day}</span>
               {active && (
                 <span className="num text-[10px] sm:text-[11px] font-medium leading-none text-ink truncate w-full">
-                  {money(net, { compact: true, whole: true })}
+                  {moneyShort(net)}
                 </span>
               )}
             </div>
