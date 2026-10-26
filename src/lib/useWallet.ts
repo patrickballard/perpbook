@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HyperliquidClient } from "./hyperliquid/client";
+import { budgetedFetch, WeightBudget } from "./sync/budget";
 import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
@@ -24,7 +25,10 @@ type Raw = {
   storage: Storage;
 };
 
-const client = new HyperliquidClient();
+// Pace requests under Hyperliquid's per-IP limit (1,200 weight a minute) instead of bursting
+// past it: a long-lived wallet's first load needs more than a minute's budget, and bursting
+// ended in 429s and a failed sync. Paced, a big wallet loads slowly but always loads.
+const client = new HyperliquidClient(budgetedFetch(new WeightBudget(1_000)));
 
 /**
  * Positions on every dex and Hyperliquid's own PnL, fetched together after the fills so
