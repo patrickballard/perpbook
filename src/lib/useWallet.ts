@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HyperliquidClient } from "./hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "./sync/budget";
-import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
+import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions, perpHistoryStart } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
 import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./engine/stats";
@@ -19,6 +19,8 @@ type Raw = {
   accountValue: number | null;
   /** Hyperliquid's own all-time perps PnL, to check ours against. */
   hyperliquidPnl: number | null;
+  /** When Hyperliquid's PnL record starts, to tell whether we have the account's whole history. */
+  hyperliquidSince: number | null;
   syncedAt: number;
   /** Fills Hyperliquid returned; near 10,000 means older ones are dropping off. */
   rawFillCount: number;
@@ -39,7 +41,7 @@ async function liveState(address: string) {
     client.allClearinghouses(address).catch(() => []),
     client.portfolio(address).catch(() => null),
   ]);
-  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio) };
+  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio), hyperliquidSince: perpHistoryStart(portfolio) };
 }
 
 export function useWallet(address: string) {
@@ -54,7 +56,7 @@ export function useWallet(address: string) {
     try {
       if (demo) {
         const d = demoAccount();
-        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null };
+        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null, hyperliquidSince: null };
         setRaw({
           fills: normaliseFills(d.fills),
           funding: normaliseFunding(d.funding),

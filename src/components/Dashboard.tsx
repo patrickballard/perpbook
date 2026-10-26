@@ -105,7 +105,7 @@ export function Dashboard({ address }: { address: string }) {
             />
           </div>
 
-          {derived.reconciliation && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} />}
+          {derived.reconciliation && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} hyperliquidSince={raw.hyperliquidSince} />}
 
           <div className="grid lg:grid-cols-5 gap-4 items-start">
             <Section title="Equity" hint="Cumulative net PnL by day" className="lg:col-span-3">

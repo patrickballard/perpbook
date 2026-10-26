@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HyperliquidClient } from "./client";
-import { allTimePerpPnl, normalisePositions } from "./normalise";
+import { allTimePerpPnl, normalisePositions, perpHistoryStart } from "./normalise";
 
 describe("positions across dexs", () => {
   it("asks every perp dex, including HIP-3 ones, and merges positions", async () => {
@@ -29,5 +29,12 @@ describe("positions across dexs", () => {
       ]),
     ).toBe(568.27);
     expect(allTimePerpPnl(null)).toBeNull();
+  });
+});
+
+describe("perpHistoryStart", () => {
+  it("reads when Hyperliquid's perps PnL record starts", () => {
+    expect(perpHistoryStart([["perpAllTime", { pnlHistory: [[1_741_000_000_000, "0"], [2, "5"]], accountValueHistory: [], vlm: "0" }]])).toBe(1_741_000_000_000);
+    expect(perpHistoryStart(null)).toBeNull();
   });
 });
