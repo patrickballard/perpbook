@@ -142,6 +142,9 @@ export function useWallet(address: string) {
   }, [address, demo]);
 
   useEffect(() => {
+    // Loading the wallet when the page opens (or the address changes) is syncing with an external
+    // system, which is what effects are for; sync() marks the page as loading before it awaits.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void sync();
   }, [sync]);
 

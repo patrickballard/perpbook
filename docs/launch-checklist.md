@@ -12,7 +12,7 @@ Everything between today's v0.1 and perpbook having real users who pay. Ordered 
 - [ ] Show funding that can't be attributed to a trade (paid before the first stored fill) instead of letting totals differ silently
 - [x] Tests built from real fill patterns: liquidations (modelled on James Wynn's), ADL, TWAP slices, partial closes
 - [x] Never show partial history as complete; Hyperliquid's own totals for wallets too active to rebuild (#18)
-- [ ] Upgrade Next.js and Vitest: `npm audit` reports 5 advisories (2 critical, in Vitest's dev tooling); fixes need Next 16 and Vitest 5
+- [x] Upgrade Next.js and Vitest: Next 16.4.1 and Vitest 5.0.3, `npm audit` clean (PR waiting for review)
 
 ## 2. Never lose history (design: [permanent-history.md](permanent-history.md))
 
