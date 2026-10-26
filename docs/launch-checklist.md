@@ -32,7 +32,8 @@ Everything between today's v0.1 and perpbook having real users who pay. Ordered 
 - [ ] Download a PnL card as an image from the dashboard
 - [ ] Monthly "wrapped" summary page per wallet
 - [ ] Landing page that sells it: real screenshot, the three promises (trades not fills, real PnL, read-only), a demo link above the fold
-- [ ] SEO basics: titles, descriptions, sitemap, `robots.txt`
+- [x] SEO basics: titles, descriptions, sitemap, `robots.txt`
+- [x] Clear page for addresses with no perp trades (wrong wallet, spot only, brand new)
 - [ ] Privacy-friendly page-view analytics (e.g. Plausible or Vercel Analytics) so launches can be measured
 - [ ] 👤 Custom domain (e.g. perpbook.xyz)
 
