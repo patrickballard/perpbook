@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HyperliquidClient } from "./hyperliquid/client";
-import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
+import { budgetedFetch, WeightBudget } from "./sync/budget";
+import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions, perpHistoryStart } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
 import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./engine/stats";
@@ -18,13 +19,18 @@ type Raw = {
   accountValue: number | null;
   /** Hyperliquid's own all-time perps PnL, to check ours against. */
   hyperliquidPnl: number | null;
+  /** When Hyperliquid's PnL record starts, to tell whether we have the account's whole history. */
+  hyperliquidSince: number | null;
   syncedAt: number;
   /** Fills Hyperliquid returned; near 10,000 means older ones are dropping off. */
   rawFillCount: number;
   storage: Storage;
 };
 
-const client = new HyperliquidClient();
+// Pace requests under Hyperliquid's per-IP limit (1,200 weight a minute) instead of bursting
+// past it: a long-lived wallet's first load needs more than a minute's budget, and bursting
+// ended in 429s and a failed sync. Paced, a big wallet loads slowly but always loads.
+const client = new HyperliquidClient(budgetedFetch(new WeightBudget(1_000)));
 
 /**
  * Positions on every dex and Hyperliquid's own PnL, fetched together after the fills so
@@ -35,7 +41,7 @@ async function liveState(address: string) {
     client.allClearinghouses(address).catch(() => []),
     client.portfolio(address).catch(() => null),
   ]);
-  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio) };
+  return { ...normalisePositions(chs), hyperliquidPnl: allTimePerpPnl(portfolio), hyperliquidSince: perpHistoryStart(portfolio) };
 }
 
 export function useWallet(address: string) {
@@ -50,7 +56,7 @@ export function useWallet(address: string) {
     try {
       if (demo) {
         const d = demoAccount();
-        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null };
+        const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null, hyperliquidSince: null };
         setRaw({
           fills: normaliseFills(d.fills),
           funding: normaliseFunding(d.funding),
@@ -79,7 +85,11 @@ export function useWallet(address: string) {
             storage,
           });
         } else {
-          const [fills, funding] = await Promise.all([client.fills(address), client.funding(address)]);
+          // Funding from before the oldest fill Hyperliquid still serves can't be matched to a trade,
+          // and for long-lived wallets it's most of the requests: James Wynn's ran past the per-IP
+          // rate limit. Start where the fills start, as the sync worker does.
+          const fills = await client.fills(address);
+          const funding = await client.funding(address, fills[0]?.time ?? 0);
           const live = await liveState(address);
           setRaw({
             fills: normaliseFills(fills),

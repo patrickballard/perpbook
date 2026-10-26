@@ -106,3 +106,8 @@ export function allTimePerpPnl(p: HlPortfolio | null): number | null {
   const last = series?.at(-1);
   return last ? num(last[1]) : null;
 }
+
+/** When Hyperliquid's perps PnL record for the account starts (ms), or null. */
+export function perpHistoryStart(p: HlPortfolio | null): number | null {
+  return p?.find(([period]) => period === "perpAllTime")?.[1].pnlHistory[0]?.[0] ?? null;
+}

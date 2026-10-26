@@ -177,3 +177,10 @@ export function reconcile(days: Day[], positions: { unrealizedPnl: number; notio
   const matches = Math.abs(difference) <= Math.max(1, notional * 0.001);
   return { realised, unrealised, perpbook, hyperliquid: hyperliquidPnl, difference, matches };
 }
+
+/**
+ * Whether we have the account's whole history: our oldest fill is within a few days of when
+ * Hyperliquid's own PnL record starts. If it is, a gap can't be blamed on missing history.
+ */
+export const hasFullHistory = (firstFillTime: number | null, hyperliquidSince: number | null) =>
+  firstFillTime != null && hyperliquidSince != null && firstFillTime - hyperliquidSince < 3 * 86_400_000;
