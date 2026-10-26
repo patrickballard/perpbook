@@ -1,14 +1,19 @@
 // The sync worker: keeps every tracked wallet's stored history up to date.
-// Run one per IP address; Hyperliquid's rate budget is per IP. `npm run worker`.
+// Run one per IP address; Hyperliquid's rate budget is per IP.
+//   npm run worker             run forever (a server)
+//   npm run worker -- --once   sync what's due, then exit (a scheduled job, e.g. GitHub Actions)
 
 import { serverDb } from "../lib/db/server";
 import { migrate } from "../lib/db/migrations";
-import { claimDueWallet, failSync, nextDueAt } from "../lib/db/store";
 import { HyperliquidClient } from "../lib/hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "../lib/sync/budget";
-import { idleWait, syncWallet } from "../lib/sync/sync";
+import { runWorker } from "../lib/sync/worker";
 
-const RETRY_AFTER_ERROR_MS = 15 * 60_000;
+const once = process.argv.includes("--once");
+// GitHub sets GITHUB_ACTIONS; logs on a public repo are public, so keep wallet addresses out of them.
+const perWalletLogs = process.env.GITHUB_ACTIONS !== "true";
+// Stop claiming wallets in time for the job's own timeout; whatever is left waits for the next run.
+const maxMs = Number(process.env.WORKER_MAX_MINUTES ?? 20) * 60_000;
 
 // Resolves early when the worker is told to stop, so shutdown doesn't wait out a long idle sleep.
 let wake: () => void = () => {};
@@ -30,8 +35,8 @@ async function main() {
   if (applied) log("migrated", { applied });
 
   // Leave headroom under Hyperliquid's 1,200 for anything else sharing this IP.
-  const budget = new WeightBudget(Number(process.env.HL_WEIGHT_PER_MINUTE ?? 1_000));
-  const client = new HyperliquidClient(budgetedFetch(budget));
+  const weightPerMinute = Number(process.env.HL_WEIGHT_PER_MINUTE ?? 1_000);
+  const client = new HyperliquidClient(budgetedFetch(new WeightBudget(weightPerMinute)));
 
   let stopping = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const)
@@ -39,25 +44,11 @@ async function main() {
       stopping = true;
       wake();
     });
-  log("worker started", { weightPerMinute: Number(process.env.HL_WEIGHT_PER_MINUTE ?? 1_000) });
+  log("worker started", { once, weightPerMinute });
 
-  while (!stopping) {
-    const address = await claimDueWallet(db);
-    if (!address) {
-      await sleep(idleWait(await nextDueAt(db), Date.now()));
-      continue;
-    }
-    const started = Date.now();
-    try {
-      const r = await syncWallet(db, client, address);
-      log("synced", { address, ...r, ms: Date.now() - started });
-    } catch (e) {
-      const error = e instanceof Error ? e.message : String(e);
-      await failSync(db, address, error, Date.now() + RETRY_AFTER_ERROR_MS);
-      log("sync failed", { address, error });
-    }
-  }
-  log("worker stopped");
+  const started = Date.now();
+  const totals = await runWorker(db, client, { once, maxMs, perWalletLogs, log, sleep, stopped: () => stopping });
+  log("worker stopped", { ...totals, ms: Date.now() - started });
   process.exit(0);
 }
 
