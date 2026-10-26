@@ -10,7 +10,8 @@ Everything between today's v0.1 and perpbook having real users who pay. Ordered 
 - [x] Reconciliation check: realised + unrealised vs Hyperliquid's own `portfolio` PnL, with a "Matches Hyperliquid" badge or an explanation (#7)
 - [x] Include positions on builder-deployed (HIP-3) markets, which were missing from "Open now" and unrealised PnL (#7)
 - [ ] Show funding that can't be attributed to a trade (paid before the first stored fill) instead of letting totals differ silently
-- [ ] Tests built from real fill patterns: liquidations, ADL, HIP-3 markets, TWAP slices, partial closes
+- [x] Tests built from real fill patterns: liquidations (modelled on James Wynn's), ADL, TWAP slices, partial closes
+- [x] Never show partial history as complete; Hyperliquid's own totals for wallets too active to rebuild (#18)
 - [ ] Upgrade Next.js and Vitest: `npm audit` reports 5 advisories (2 critical, in Vitest's dev tooling); fixes need Next 16 and Vitest 5
 
 ## 2. Never lose history (design: [permanent-history.md](permanent-history.md))
