@@ -55,3 +55,16 @@ describe("mergeById", () => {
     expect(merged.map((x) => x.id)).toEqual(["a", "b", "c"]);
   });
 });
+
+describe("getStoredHistory limits", () => {
+  it("stops after 10 pages and says the history is partial", async () => {
+    let calls = 0;
+    const f = (async (url: string) => {
+      calls++;
+      return url.includes("kind=funding") ? json({ rows: [], next: null }) : json({ rows: [{ id: `f${calls}`, time: calls }], next: `${calls}:f${calls}` });
+    }) as typeof fetch;
+    const h = await getStoredHistory("0xa", f);
+    expect(h.fills).toHaveLength(10);
+    expect(h.complete).toBe(false);
+  });
+});

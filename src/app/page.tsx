@@ -8,7 +8,7 @@ const REPO = "https://github.com/patrickballard/perpbook";
 const proof = [
   ["7,800 fills", "773 trades", "One active wallet's fills, rebuilt into the trades they actually were. Grouped naively, the same fills look like 3,244 trades."],
   ["Your PnL", "checked against Hyperliquid", "Realised plus open PnL is compared with Hyperliquid's own figure, so you can see the numbers add up."],
-  ["10,000 fills", "and nothing lost", "Hyperliquid only serves your latest 10,000 fills. Save your wallet and perpbook keeps every one after that."],
+  ["Saved wallets", "load in seconds", "Hyperliquid's API only guarantees your latest 10,000 fills. Save your wallet and perpbook keeps its own copy of every fill from then on."],
 ];
 
 const points = [

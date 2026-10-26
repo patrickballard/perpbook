@@ -100,6 +100,11 @@ export const insertFills = (db: Db, address: string, fills: HlFill[]) =>
 export const insertFunding = (db: Db, address: string, funding: HlFunding[]) =>
   insertRows(db, "funding", address, funding.map((f) => ({ id: fundingId(f), coin: f.delta?.coin ?? "", time: f.time, raw: f })));
 
+export async function countFills(db: Db, address: string): Promise<number> {
+  const { rows } = await db.query<{ n: number }>("select count(*)::int as n from fills where address = $1", [address]);
+  return rows[0].n;
+}
+
 export async function recordGap(db: Db, address: string, gap: Gap) {
   await db.query("insert into history_gaps (address, from_time, to_time) values ($1, $2, $3)", [address, gap.fromTime, gap.toTime]);
 }

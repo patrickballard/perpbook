@@ -142,3 +142,30 @@ describe("idle worker", () => {
     expect(await nextDueAt(db)).toBe(T0 - 60_000);
   });
 });
+
+describe("very active wallets", () => {
+  it("paging says when it stopped at the page limit instead of the end", async () => {
+    const hl = new FakeHyperliquid(10_000, 2);
+    for (let i = 0; i < 7; i++) hl.trade(T0 + i, i % 2 ? "sell" : "buy", 1);
+    expect((await hl.client().fills(A, 0, 2)).complete).toBe(false);
+    const all = await hl.client().fills(A, 0, 20);
+    expect(all.complete).toBe(true);
+    expect(all.rows).toHaveLength(7);
+  });
+
+  it("comes back soon when a sync stopped early, and stops for a day at the per-wallet cap", async () => {
+    const db = await testDb();
+    const hl = new FakeHyperliquid(10_000, 2); // 2 fills per page
+    for (let i = 0; i < 10; i++) hl.trade(T0 + i * 1000, i % 2 ? "sell" : "buy", 1);
+    await trackWallet(db, A, T0);
+
+    const first = await syncWallet(db, hl.client(), A, T0 + H, 3);
+    expect(first).toMatchObject({ newFills: 2, complete: false, nextSyncAt: T0 + H + 10 * 60_000 });
+
+    await syncWallet(db, hl.client(), A, T0 + 2 * H, 3);
+    const capped = await syncWallet(db, hl.client(), A, T0 + 3 * H, 3);
+    expect(capped).toMatchObject({ newFills: 0, capped: true, nextSyncAt: T0 + 3 * H + 24 * H });
+    expect((await allFills(db)).length).toBe(3);
+    expect((await getWallet(db, A))?.syncError).toMatch(/more fills than perpbook saves/);
+  });
+});

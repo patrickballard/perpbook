@@ -39,7 +39,7 @@ From then on it runs every half hour on its own. GitHub hides secrets in the log
 
 ## What to know about the free setup
 
-- **Timing.** GitHub starts scheduled jobs late when it's busy, sometimes by an hour or more, so syncs happen roughly every 30 to 60 minutes. That's plenty: the dashboard always shows live data, and the job only has to save fills before more than 10,000 new ones pile up for a wallet.
+- **Timing.** GitHub starts scheduled jobs late, or skips them, when it's busy. On this repository it has been running the job about every 6 hours rather than every 30 minutes. That's fine for now: the dashboard always shows live data on top of what's saved. If it ever matters, a free external scheduler can trigger the job on time.
 - **Rate limits.** Hyperliquid's limit is per IP address. Every run gets a fresh GitHub machine, so the worker has the limit to itself, and it stays under it with its built-in budget.
 - **Inactivity.** GitHub pauses scheduled jobs in a public repository after 60 days without commits. If that happens, GitHub emails you; re-enable it from the **Actions** tab.
 - **Neon's free plan** includes 0.5 GB of storage (roughly a million fills) and 100 compute-hours a month. Neon suspends the database after 5 minutes without queries, so between runs it's asleep. With a run every half hour that's roughly half the free hours.
@@ -79,4 +79,4 @@ The container restarts on its own after crashes and reboots. One server keeps ab
 
 ## Backups
 
-Neon's free plan can restore the database to any point in the last 6 hours; paid plans keep a longer history. Fills that have dropped out of Hyperliquid's 10,000-fill window can't be fetched again, so for those the database is the only copy.
+Neon's free plan can restore the database to any point in the last 6 hours; paid plans keep a longer history. Hyperliquid's API only promises a wallet's latest 10,000 fills (older ones were still served in October 2026); if that changes, the database is the only copy of the rest.

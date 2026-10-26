@@ -1,5 +1,7 @@
 # Permanent history: storage and a sync worker
 
+> **Update, 26 Oct 2026:** two assumptions below turned out wrong. Hyperliquid still serves fills older than a wallet's latest 10,000 (the docs say it doesn't), so saving is insurance and speed rather than the only way to keep history. And some wallets have hundreds of thousands of fills: the client now reports when paging stopped early, the dashboard shows Hyperliquid's own totals for wallets too big to rebuild, and saved wallets are capped at `MAX_FILLS_PER_WALLET` (50,000) stored fills.
+
 Status: proposal · October 2026
 
 ## Why this comes first
