@@ -82,7 +82,7 @@ export function Dashboard({ address }: { address: string }) {
         <ShareCardButton
           filename={`perpbook-${demo ? "demo" : `${address.slice(0, 6)}-${address.slice(-4)}`}.png`}
           data={
-            derived && full && typeof window !== "undefined"
+            derived && full && !raw?.fundingPending && typeof window !== "undefined"
               ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, equity: derived.equity, reconciliation: derived.reconciliation, host: window.location.host })
               : null
           }
@@ -182,7 +182,11 @@ export function Dashboard({ address }: { address: string }) {
               label="Net PnL"
               value={money(derived.stats.net)}
               tone={toneOf(derived.stats.net)}
-              sub={`after ${money(derived.stats.fees, { sign: false })} fees · ${money(derived.stats.funding)} funding`}
+              sub={
+                raw.fundingPending
+                  ? `after ${money(derived.stats.fees, { sign: false })} fees · funding still loading…`
+                  : `after ${money(derived.stats.fees, { sign: false })} fees · ${money(derived.stats.funding)} funding`
+              }
             />
             <Kpi label="Win rate" value={pct(derived.stats.winRate)} sub={`${derived.stats.wins} won · ${derived.stats.losses} lost`} />
             <Kpi
@@ -199,7 +203,7 @@ export function Dashboard({ address }: { address: string }) {
             />
           </div>
 
-          {derived.reconciliation && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} hyperliquidSince={raw.hyperliquidSince} />}
+          {derived.reconciliation && !raw.fundingPending && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} hyperliquidSince={raw.hyperliquidSince} />}
 
           <div className="grid lg:grid-cols-5 gap-4 items-start">
             <Section title="Equity" hint="Cumulative net PnL by day" className="lg:col-span-3">
