@@ -11,6 +11,8 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 // Cards get fetched by every app a link is pasted into; one portfolio request per wallet per 15 minutes.
 export const revalidate = 900;
+// Without this, the route renders on every request and `revalidate` above never applies.
+export const generateStaticParams = async () => [];
 
 // The dark theme from globals.css, which reads best in social feeds.
 const C = { page: "#0d0d0d", ink: "#f0efec", ink2: "#c3c2b7", muted: "#898781", line: "#2c2c2a", accent: "#3987e5", up: "#3fc794", down: "#f07f7f" };

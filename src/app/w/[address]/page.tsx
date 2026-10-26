@@ -5,6 +5,10 @@ import { isAddress } from "@/lib/hyperliquid/client";
 
 type Props = { params: Promise<{ address: string }> };
 
+// The page is the same for every visitor (the dashboard loads in the browser), so build each
+// address's page on its first visit and serve that copy from Vercel's cache after.
+export const generateStaticParams = async () => [];
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { address } = await params;
   const title = address === "demo" ? "Demo journal · perpbook" : `${address.slice(0, 6)}…${address.slice(-4)} · perpbook`;
