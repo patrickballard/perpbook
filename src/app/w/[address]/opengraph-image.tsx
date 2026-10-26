@@ -98,6 +98,12 @@ export default async function Image({ params }: { params: Promise<{ address: str
         </div>
       </div>
     ),
-    { ...size, fonts: fontList },
+    {
+      ...size,
+      fonts: fontList,
+      // ImageResponse marks every image `max-age=0, must-revalidate`, which Vercel's cache takes
+      // literally: it rebuilt the card (and asked Hyperliquid) on every request. Say how long it's good for.
+      headers: { "Cache-Control": `public, s-maxage=${revalidate}, stale-while-revalidate=86400` },
+    },
   );
 }
