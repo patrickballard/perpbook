@@ -169,3 +169,15 @@ describe("very active wallets", () => {
     expect((await getWallet(db, A))?.syncError).toMatch(/more fills than perpbook saves/);
   });
 });
+
+describe("loading progress", () => {
+  it("reports the running count after each page", async () => {
+    const hl = new FakeHyperliquid(10_000, 2);
+    for (let i = 0; i < 5; i++) hl.trade(T0 + i, i % 2 ? "sell" : "buy", 1);
+    const seen: number[] = [];
+    await hl.client().fills(A, 0, 20, (n) => seen.push(n));
+    // Pages overlap by a fill (each starts at the last one's timestamp), so the count only ever grows.
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
+    expect(seen.at(-1)).toBe(5);
+  });
+});
