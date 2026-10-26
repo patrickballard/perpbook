@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HyperliquidClient } from "./client";
 import { allTimePerpPnl, normalisePositions, perpHistoryStart } from "./normalise";
 
@@ -19,6 +19,37 @@ describe("positions across dexs", () => {
     expect(positions.map((p) => p.coin)).toEqual(["BTC", "xyz:GOLD"]);
     expect(accountValue).toBe(200);
     expect(bodies.filter((b) => b.type === "clearinghouseState").map((b) => b.dex ?? "")).toEqual(["", "xyz"]);
+  });
+
+  describe("the list of dexs", () => {
+    afterEach(() => vi.useRealTimers());
+    const counting = (fail = 0) => {
+      const asked = { n: 0 };
+      const fetchImpl = (async () => {
+        asked.n++;
+        return asked.n <= fail ? new Response("", { status: 400 }) : new Response(JSON.stringify([null, { name: "xyz" }]));
+      }) as unknown as typeof fetch;
+      return { asked, client: new HyperliquidClient(fetchImpl) };
+    };
+
+    it("is asked for once and reused for 10 minutes", async () => {
+      vi.useFakeTimers();
+      const { asked, client } = counting();
+      await Promise.all([client.perpDexs(), client.perpDexs()]);
+      vi.advanceTimersByTime(9 * 60_000);
+      expect(await client.perpDexs()).toEqual(["", "xyz"]);
+      expect(asked.n).toBe(1);
+      vi.advanceTimersByTime(2 * 60_000);
+      await client.perpDexs();
+      expect(asked.n).toBe(2);
+    });
+
+    it("isn't kept when the request fails", async () => {
+      const { asked, client } = counting(1);
+      await expect(client.perpDexs()).rejects.toThrow();
+      expect(await client.perpDexs()).toEqual(["", "xyz"]);
+      expect(asked.n).toBe(2);
+    });
   });
 
   it("reads Hyperliquid's all-time perps PnL from the portfolio", () => {

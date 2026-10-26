@@ -16,6 +16,9 @@ export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** How long the list of perp dexes is reused; new dexes are rare and every load asks for it. */
+const DEXS_TTL_MS = 10 * 60_000;
+
 export class HyperliquidClient {
   constructor(
     private readonly fetchImpl: FetchLike = (...a) => fetch(...a),
@@ -94,10 +97,18 @@ export class HyperliquidClient {
     return this.paged<HlFunding>("userFunding", user, (f) => `${f.hash}-${f.time}-${f.delta?.coin}`, startTime, maxPages, onProgress);
   }
 
+  private dexs?: { at: number; names: Promise<string[]> };
+
   /** Every perp dex: "" is Hyperliquid's own, the rest are builder-deployed (HIP-3) markets. */
-  async perpDexs(): Promise<string[]> {
-    const dexs = await this.info<({ name: string } | null)[]>({ type: "perpDexs" });
-    return dexs.map((d) => d?.name ?? "");
+  perpDexs(): Promise<string[]> {
+    const now = Date.now();
+    if (!this.dexs || now - this.dexs.at > DEXS_TTL_MS) {
+      const names = this.info<({ name: string } | null)[]>({ type: "perpDexs" }).then((d) => d.map((x) => x?.name ?? ""));
+      // Don't keep a failure: the next caller asks again.
+      names.catch(() => this.dexs?.names === names && (this.dexs = undefined));
+      this.dexs = { at: now, names };
+    }
+    return this.dexs.names;
   }
 
   clearinghouse(user: string, dex = "") {
