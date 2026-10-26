@@ -9,7 +9,8 @@ export function money(
   let body: string;
   if (compact && a >= 10_000) body = `${(a / 1000).toFixed(0)}k`;
   else if (compact && a >= 1000) body = `${(a / 1000).toFixed(1)}k`;
-  else if ((compact && a >= 100) || whole) body = a.toFixed(0);
+  // Whole dollars only from $10: below that, rounding turns +$0.19 into "+$0".
+  else if ((compact && a >= 100) || (whole && a >= 10)) body = a.toFixed(0);
   else body = a.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${s}$${body}`;
 }
@@ -53,4 +54,13 @@ export function when(ms: number): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** For tight spaces like calendar cells: cents under $1, one decimal under $10, then as money(). */
+export function moneyShort(v: number): string {
+  const s = v > 0.004 ? "+" : v < -0.004 ? "−" : "";
+  const a = Math.abs(v);
+  if (a < 0.995) return `${s}${Math.round(a * 100)}¢`;
+  if (a < 9.95) return `${s}$${a.toFixed(1)}`;
+  return money(v, { compact: true, whole: true });
 }
