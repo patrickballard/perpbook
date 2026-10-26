@@ -91,12 +91,11 @@ export function useWallet(address: string) {
           // Saved history from perpbook, then only what's newer straight from Hyperliquid.
           const stored = await getStoredHistory(address, fetch, loading("your saved history"));
           const since = lastTime(stored.fills);
-          const [fills, funding] = await Promise.all([
+          const [fills, funding, live] = await Promise.all([
             client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")),
             client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
+            liveState(client, address),
           ]);
-          note("Checking positions and totals against Hyperliquid…");
-          const live = await liveState(client, address);
           show({
             fills: mergeById(stored.fills, normaliseFills(fills.rows)),
             funding: mergeById(stored.funding, normaliseFunding(funding.rows)),

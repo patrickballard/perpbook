@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HyperliquidClient } from "./hyperliquid/client";
 import { loadFromHyperliquid, type Loaded } from "./load";
 import { FakeHyperliquid } from "./sync/fakeHyperliquid";
 import { CACHE_VERSION, memoryStore } from "./walletCache";
@@ -47,13 +48,28 @@ describe("loadFromHyperliquid", () => {
     expect(again.funding).toHaveLength(5);
   });
 
-  it("shows the browser's copy while new funding loads", async () => {
+  it("on a repeat visit asks for new fills, new funding and live state at once, and finishes in one go", async () => {
     const hl = wallet();
     const cache = memoryStore();
     await loadFromHyperliquid(hl.client(), A, { ...opts, cache });
+
+    // Each request takes a moment, so anything waiting on another shows up as starting after an end.
+    const log: string[] = [];
+    const slow = (async (url: string, init?: RequestInit) => {
+      const type = JSON.parse(String(init?.body)).type;
+      log.push(`start ${type}`);
+      await new Promise((r) => setTimeout(r, 5));
+      log.push(`end ${type}`);
+      return hl.fetch(url, init);
+    }) as typeof fetch;
     let partial: Loaded | null = null;
-    await loadFromHyperliquid(hl.client(), A, { ...opts, cache, onFills: (p) => (partial = p) });
-    expect(partial!.funding).toHaveLength(4);
+    const again = await loadFromHyperliquid(new HyperliquidClient(slow), A, { ...opts, cache, onFills: (p) => (partial = p) });
+
+    const firstEnd = log.findIndex((e) => e.startsWith("end"));
+    for (const type of ["userFillsByTime", "userFunding", "portfolio", "perpDexs"]) expect(log.indexOf(`start ${type}`)).toBeLessThan(firstEnd);
+    expect(partial).toBeNull();
+    expect(again).toMatchObject({ complete: true, fundingPending: false });
+    expect(again.funding).toHaveLength(4);
   });
 
   it("doesn't fetch funding or save a copy for a wallet too active to load", async () => {
