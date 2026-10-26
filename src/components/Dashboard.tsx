@@ -10,6 +10,8 @@ import { HBars, VBars } from "./Bars";
 import { TradesTable } from "./TradesTable";
 import { HistoryNotice, savedSince } from "./HistoryNotice";
 import { Reconcile } from "./Reconcile";
+import { ShareCardButton } from "./ShareCardButton";
+import { cardData } from "@/lib/card";
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
@@ -52,6 +54,14 @@ export function Dashboard({ address }: { address: string }) {
           {raw && <span className="text-muted hidden sm:inline">· synced {new Date(raw.syncedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span>}
           {raw && savedSince(raw.storage) && <span className="text-muted hidden md:inline">· history saved since {savedSince(raw.storage)}</span>}
         </div>
+        <ShareCardButton
+          filename={`perpbook-${demo ? "demo" : `${address.slice(0, 6)}-${address.slice(-4)}`}.png`}
+          data={
+            derived && typeof window !== "undefined"
+              ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, equity: derived.equity, reconciliation: derived.reconciliation, host: window.location.host })
+              : null
+          }
+        />
         <button onClick={() => void sync()} disabled={status === "loading"} className="h-9 px-3 rounded-lg border border-line text-sm hover:bg-raised disabled:opacity-50">
           {status === "loading" ? "Syncing…" : "Refresh"}
         </button>
