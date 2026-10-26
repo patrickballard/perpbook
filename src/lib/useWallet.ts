@@ -68,10 +68,14 @@ export function useWallet(address: string) {
   const [status, setStatus] = useState<WalletStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [raw, setRaw] = useState<Raw | null>(null);
+  // What's loading right now, for wallets that take a while ("Loading fills from Hyperliquid: 8,000 so far…").
+  const [progress, setProgress] = useState<string | null>(null);
 
   const sync = useCallback(async () => {
     setStatus("loading");
     setError(null);
+    setProgress(null);
+    const loading = (what: string) => (n: number) => setProgress(`Loading ${what}: ${n.toLocaleString("en-GB")} so far…`);
     try {
       if (demo) {
         const d = demoAccount();
@@ -89,12 +93,13 @@ export function useWallet(address: string) {
         const storage = await getStorage(address);
         if (storage.state === "tracked") {
           // Saved history from perpbook, then only what's newer straight from Hyperliquid.
-          const stored = await getStoredHistory(address);
+          const stored = await getStoredHistory(address, fetch, loading("your saved history"));
           const since = lastTime(stored.fills);
           const [fills, funding] = await Promise.all([
-            client.fills(address, since ?? 0, FILL_PAGES),
+            client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")),
             client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
           ]);
+          setProgress("Checking positions and totals against Hyperliquid…");
           const live = await liveState(address);
           setRaw({
             fills: mergeById(stored.fills, normaliseFills(fills.rows)),
@@ -109,9 +114,12 @@ export function useWallet(address: string) {
           // Funding from before the oldest fill Hyperliquid still serves can't be matched to a trade,
           // and for long-lived wallets it's most of the requests: James Wynn's ran past the per-IP
           // rate limit. Start where the fills start, as the sync worker does.
-          const fills = await client.fills(address, 0, FILL_PAGES);
+          const fills = await client.fills(address, 0, FILL_PAGES, loading("fills from Hyperliquid"));
           // Too big: skip funding, since the rebuilt numbers won't be shown anyway.
-          const funding = fills.complete ? await client.funding(address, fills.rows[0]?.time ?? 0, FUNDING_PAGES) : { rows: [], complete: false };
+          const funding = fills.complete
+            ? await client.funding(address, fills.rows[0]?.time ?? 0, FUNDING_PAGES, loading("funding payments"))
+            : { rows: [], complete: false };
+          setProgress("Checking positions and totals against Hyperliquid…");
           const live = await liveState(address);
           setRaw({
             fills: normaliseFills(fills.rows),
@@ -128,6 +136,8 @@ export function useWallet(address: string) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sync failed");
       setStatus("error");
+    } finally {
+      setProgress(null);
     }
   }, [address, demo]);
 
@@ -160,5 +170,5 @@ export function useWallet(address: string) {
     };
   }, [raw]);
 
-  return { status, error, raw, derived, sync, demo, track, tracking, trackError };
+  return { status, error, raw, derived, sync, demo, track, tracking, trackError, progress };
 }

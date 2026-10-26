@@ -60,7 +60,7 @@ function OpenPositions({ positions }: { positions: OpenPosition[] }) {
 }
 
 export function Dashboard({ address }: { address: string }) {
-  const { status, error, raw, derived, sync, demo, track, tracking, trackError } = useWallet(address);
+  const { status, error, raw, derived, sync, demo, track, tracking, trackError, progress } = useWallet(address);
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
@@ -104,6 +104,12 @@ export function Dashboard({ address }: { address: string }) {
       )}
 
       {raw?.complete && <HistoryNotice storage={raw.storage} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
+
+      {status === "loading" && progress && (
+        <p className="text-sm text-ink-2 mb-4 px-1" aria-live="polite">
+          <span className="num">{progress}</span> <span className="text-muted">Active wallets can take a minute or two.</span>
+        </p>
+      )}
 
       {!derived && status === "loading" && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

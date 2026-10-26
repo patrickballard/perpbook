@@ -55,6 +55,7 @@ export class HyperliquidClient {
     idOf: (row: T) => string,
     startTime = 0,
     maxPages = 60,
+    onProgress?: (rows: number) => void,
   ): Promise<Paged<T>> {
     const out = new Map<string, T>();
     let start = startTime;
@@ -78,18 +79,19 @@ export class HyperliquidClient {
         break;
       }
       start = Math.max(...batch.map((r) => r.time));
+      onProgress?.(out.size);
     }
     // Stopping at maxPages used to look exactly like the end of history, so very active wallets
     // (James Wynn has 300,000+ fills) were shown as if a fraction of their trades were all of them.
     return { rows: [...out.values()].sort((a, b) => a.time - b.time), complete };
   }
 
-  fills(user: string, startTime = 0, maxPages?: number) {
-    return this.paged<HlFill>("userFillsByTime", user, (f) => `${f.tid}-${f.hash}`, startTime, maxPages);
+  fills(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void) {
+    return this.paged<HlFill>("userFillsByTime", user, (f) => `${f.tid}-${f.hash}`, startTime, maxPages, onProgress);
   }
 
-  funding(user: string, startTime = 0, maxPages?: number) {
-    return this.paged<HlFunding>("userFunding", user, (f) => `${f.hash}-${f.time}-${f.delta?.coin}`, startTime, maxPages);
+  funding(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void) {
+    return this.paged<HlFunding>("userFunding", user, (f) => `${f.hash}-${f.time}-${f.delta?.coin}`, startTime, maxPages, onProgress);
   }
 
   /** Every perp dex: "" is Hyperliquid's own, the rest are builder-deployed (HIP-3) markets. */

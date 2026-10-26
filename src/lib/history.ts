@@ -19,7 +19,7 @@ export async function getStorage(address: string, f: FetchLike = fetch): Promise
 /** Saved rows per kind the browser loads: 10 pages of 5,000. More would be slow to download and rebuild. */
 const STORED_PAGES = 10;
 
-async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchLike): Promise<{ rows: T[]; complete: boolean }> {
+async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchLike, onProgress?: (rows: number) => void): Promise<{ rows: T[]; complete: boolean }> {
   const out: T[] = [];
   let after: string | null = null;
   let pages = 0;
@@ -30,13 +30,14 @@ async function allPages<T>(address: string, kind: "fills" | "funding", f: FetchL
     if (!r.ok) throw new Error(`Couldn't load saved history (${r.status})`);
     const page = (await r.json()) as HistoryPage;
     out.push(...(page.rows as T[]));
+    onProgress?.(out.length);
     after = page.next;
   } while (after);
   return { rows: out, complete: true };
 }
 
-export async function getStoredHistory(address: string, f: FetchLike = fetch) {
-  const [fills, funding] = await Promise.all([allPages<Fill>(address, "fills", f), allPages<FundingEvent>(address, "funding", f)]);
+export async function getStoredHistory(address: string, f: FetchLike = fetch, onProgress?: (fills: number) => void) {
+  const [fills, funding] = await Promise.all([allPages<Fill>(address, "fills", f, onProgress), allPages<FundingEvent>(address, "funding", f)]);
   return { fills: fills.rows, funding: funding.rows, complete: fills.complete && funding.complete };
 }
 
