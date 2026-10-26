@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HyperliquidClient } from "./hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "./sync/budget";
-import { allTimePerpPnl, normaliseFills, normaliseFunding, normalisePositions, perpHistoryStart } from "./hyperliquid/normalise";
+import { normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
 import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./engine/stats";
 import { demoAccount } from "./demo";
-import { shareStats, type ShareStats } from "./share";
+import type { ShareStats } from "./share";
 import { getStorage, getStoredHistory, lastTime, mergeById, requestTracking, type Storage } from "./history";
+import { liveState, loadFromHyperliquid } from "./load";
+import { browserStore } from "./walletCache";
 
 export type WalletStatus = "idle" | "loading" | "ready" | "error";
 
@@ -32,6 +34,8 @@ type Raw = {
    * Hyperliquid's own totals (summary) instead.
    */
   complete: boolean;
+  /** Fills are in but funding is still loading, so totals that include funding aren't final. */
+  fundingPending: boolean;
   summary: ShareStats | null;
 };
 
@@ -46,23 +50,6 @@ const FUNDING_PAGES = 40;
 // ended in 429s and a failed sync. Paced, a big wallet loads slowly but always loads.
 const client = new HyperliquidClient(budgetedFetch(new WeightBudget(1_000)));
 
-/**
- * Positions on every dex and Hyperliquid's own PnL, fetched together after the fills so
- * all three describe nearly the same moment and can be reconciled.
- */
-async function liveState(address: string) {
-  const [chs, portfolio] = await Promise.all([
-    client.allClearinghouses(address).catch(() => []),
-    client.portfolio(address).catch(() => null),
-  ]);
-  return {
-    ...normalisePositions(chs),
-    hyperliquidPnl: allTimePerpPnl(portfolio),
-    hyperliquidSince: perpHistoryStart(portfolio),
-    summary: shareStats(portfolio),
-  };
-}
-
 export function useWallet(address: string) {
   const demo = address === "demo";
   const [status, setStatus] = useState<WalletStatus>("idle");
@@ -71,16 +58,24 @@ export function useWallet(address: string) {
   // What's loading right now, for wallets that take a while ("Loading fills from Hyperliquid: 8,000 so far…").
   const [progress, setProgress] = useState<string | null>(null);
 
+  // Each sync gets a number; results from an older one (e.g. still loading funding when the
+  // visitor clicks Refresh) are dropped instead of overwriting newer ones.
+  const generation = useRef(0);
+
   const sync = useCallback(async () => {
+    const me = ++generation.current;
+    const current = () => generation.current === me;
+    const show = (r: Raw) => current() && setRaw(r);
+    const note = (m: string | null) => current() && setProgress(m);
     setStatus("loading");
     setError(null);
     setProgress(null);
-    const loading = (what: string) => (n: number) => setProgress(`Loading ${what}: ${n.toLocaleString("en-GB")} so far…`);
+    const loading = (what: string) => (n: number) => note(`Loading ${what}: ${n.toLocaleString("en-GB")} so far…`);
     try {
       if (demo) {
         const d = demoAccount();
         const live = { ...normalisePositions([d.clearinghouse]), hyperliquidPnl: null, hyperliquidSince: null, summary: null };
-        setRaw({
+        show({
           fills: normaliseFills(d.fills),
           funding: normaliseFunding(d.funding),
           ...live,
@@ -88,6 +83,7 @@ export function useWallet(address: string) {
           rawFillCount: d.fills.length,
           storage: { state: "off" },
           complete: true,
+          fundingPending: false,
         });
       } else {
         const storage = await getStorage(address);
@@ -99,9 +95,9 @@ export function useWallet(address: string) {
             client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")),
             client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
           ]);
-          setProgress("Checking positions and totals against Hyperliquid…");
-          const live = await liveState(address);
-          setRaw({
+          note("Checking positions and totals against Hyperliquid…");
+          const live = await liveState(client, address);
+          show({
             fills: mergeById(stored.fills, normaliseFills(fills.rows)),
             funding: mergeById(stored.funding, normaliseFunding(funding.rows)),
             ...live,
@@ -109,35 +105,38 @@ export function useWallet(address: string) {
             rawFillCount: fills.rows.length,
             storage,
             complete: stored.complete && fills.complete && funding.complete,
+            fundingPending: false,
           });
         } else {
-          // Funding from before the oldest fill Hyperliquid still serves can't be matched to a trade,
-          // and for long-lived wallets it's most of the requests: James Wynn's ran past the per-IP
-          // rate limit. Start where the fills start, as the sync worker does.
-          const fills = await client.fills(address, 0, FILL_PAGES, loading("fills from Hyperliquid"));
-          // Too big: skip funding, since the rebuilt numbers won't be shown anyway.
-          const funding = fills.complete
-            ? await client.funding(address, fills.rows[0]?.time ?? 0, FUNDING_PAGES, loading("funding payments"))
-            : { rows: [], complete: false };
-          setProgress("Checking positions and totals against Hyperliquid…");
-          const live = await liveState(address);
-          setRaw({
-            fills: normaliseFills(fills.rows),
-            funding: normaliseFunding(funding.rows),
-            ...live,
+          // Straight from Hyperliquid, using the copy in this browser from earlier visits, and
+          // showing the dashboard as soon as the fills are in.
+          const toRaw = (l: Awaited<ReturnType<typeof loadFromHyperliquid>>): Raw => ({
+            fills: l.fills,
+            funding: l.funding,
+            ...l.live,
             syncedAt: Date.now(),
-            rawFillCount: fills.rows.length,
+            rawFillCount: l.rawFillCount,
             storage,
-            complete: fills.complete && funding.complete,
+            complete: l.complete,
+            fundingPending: l.fundingPending,
           });
+          const loaded = await loadFromHyperliquid(client, address, {
+            fillPages: FILL_PAGES,
+            fundingPages: FUNDING_PAGES,
+            cache: browserStore(),
+            progress: note,
+            onFills: (partial) => show(toRaw(partial)),
+          });
+          show(toRaw(loaded));
         }
       }
-      setStatus("ready");
+      if (current()) setStatus("ready");
     } catch (e) {
+      if (!current()) return;
       setError(e instanceof Error ? e.message : "Sync failed");
       setStatus("error");
     } finally {
-      setProgress(null);
+      note(null);
     }
   }, [address, demo]);
 
