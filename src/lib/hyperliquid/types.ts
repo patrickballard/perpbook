@@ -16,6 +16,12 @@ export type HlFill = {
   fee: string;
   tid: number;
   feeToken?: string;
+  /** Total fee includes this; present only when a builder (front-end) fee was charged. */
+  builderFee?: string;
+  /** Present when the fill was a liquidation of this user; its closedPnl carries the loss. */
+  liquidation?: { liquidatedUser: string; markPx: string; method: "market" | "backstop" };
+  /** Set on fills from a TWAP order's slices. */
+  twapId?: number | null;
 };
 
 export type HlFunding = {
