@@ -79,7 +79,11 @@ export function useWallet(address: string) {
             storage,
           });
         } else {
-          const [fills, funding] = await Promise.all([client.fills(address), client.funding(address)]);
+          // Funding from before the oldest fill Hyperliquid still serves can't be matched to a trade,
+          // and for long-lived wallets it's most of the requests: James Wynn's ran past the per-IP
+          // rate limit. Start where the fills start, as the sync worker does.
+          const fills = await client.fills(address);
+          const funding = await client.funding(address, fills[0]?.time ?? 0);
           const live = await liveState(address);
           setRaw({
             fills: normaliseFills(fills),
