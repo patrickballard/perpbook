@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HyperliquidClient } from "./client";
+import { HyperliquidClient, RATE_LIMITED, syncErrorMessage } from "./client";
 import { allTimePerpPnl, normalisePositions, perpHistoryStart } from "./normalise";
 
 describe("positions across dexs", () => {
@@ -69,3 +69,15 @@ describe("perpHistoryStart", () => {
     expect(perpHistoryStart(null)).toBeNull();
   });
 });
+
+describe("syncErrorMessage", () => {
+  it("says what went wrong, and only blames the address when Hyperliquid rejected it", () => {
+    expect(syncErrorMessage(new TypeError("Failed to fetch"))).toBe("Couldn't reach Hyperliquid. Check your connection and try again.");
+    expect(syncErrorMessage(new TypeError("Load failed"))).toMatch(/connection/); // Safari
+    expect(syncErrorMessage(new Error("Hyperliquid returned 502"))).toBe("Hyperliquid isn't responding right now (502). Try again in a minute.");
+    expect(syncErrorMessage(new Error("Hyperliquid returned 422"))).toMatch(/Check the address/);
+    expect(syncErrorMessage(new Error(RATE_LIMITED))).toBe(`${RATE_LIMITED}.`);
+    expect(syncErrorMessage(new Error("Couldn't load saved history (500)"))).toBe("Couldn't load saved history (500).");
+  });
+});
+

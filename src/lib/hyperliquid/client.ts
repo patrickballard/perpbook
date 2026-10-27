@@ -15,6 +15,22 @@ const RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
 
 export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in a minute";
 
+/**
+ * What to tell the visitor when a sync fails. Only a request Hyperliquid rejects (4xx) suggests the
+ * address is wrong; outages and lost connections said "check the address" too, which sent people
+ * hunting for a problem they didn't have.
+ */
+export function syncErrorMessage(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  // Browsers word a failed connection differently: "Failed to fetch", "Load failed", "NetworkError…".
+  if (e instanceof TypeError && /fetch|load failed|network/i.test(msg)) return "Couldn't reach Hyperliquid. Check your connection and try again.";
+  if (msg === RATE_LIMITED) return `${RATE_LIMITED}.`;
+  const status = Number(/Hyperliquid returned (\d{3})/.exec(msg)?.[1]);
+  if (status >= 500) return `Hyperliquid isn't responding right now (${status}). Try again in a minute.`;
+  if (status >= 400) return `Hyperliquid rejected the request (${status}). Check the address is your main account, not an API or agent wallet.`;
+  return msg.endsWith(".") ? msg : `${msg}.`;
+}
+
 /** Most TWAP slices the documented `userTwapSliceFills` returns (the newest ones). */
 const TWAP_RECENT_MAX = 2_000;
 
