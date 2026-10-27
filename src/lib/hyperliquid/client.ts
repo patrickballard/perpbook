@@ -14,6 +14,11 @@ const RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
 
 export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in a minute";
 
+/** Most TWAP slices the documented `userTwapSliceFills` returns (the newest ones). */
+const TWAP_RECENT_MAX = 2_000;
+
+const fillId = (f: HlFill) => `${f.tid}-${f.hash}`;
+
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** How long the list of perp dexes is reused; new dexes are rare and every load asks for it. */
@@ -52,19 +57,21 @@ export class HyperliquidClient {
    * until a page adds nothing new. Hyperliquid's docs say only the 10,000 most
    * recent fills are available, though in practice (Oct 2026) older ones still are.
    */
-  private async paged<T extends { time: number }>(
+  private async paged<T extends { time: number }, Raw = T>(
     type: string,
     user: string,
     idOf: (row: T) => string,
     startTime = 0,
     maxPages = 60,
     onProgress?: (rows: number) => void,
+    unwrap: (raw: Raw) => T = (raw) => raw as unknown as T,
   ): Promise<Paged<T>> {
     const out = new Map<string, T>();
     let start = startTime;
     let complete = false;
     for (let i = 0; i < maxPages; i++) {
-      const batch = await this.info<T[]>({ type, user, startTime: start, endTime: Date.now() });
+      const raw = await this.info<Raw[]>({ type, user, startTime: start, endTime: Date.now() });
+      const batch = Array.isArray(raw) ? raw.map(unwrap) : raw;
       if (!Array.isArray(batch) || batch.length === 0) {
         complete = true;
         break;
@@ -89,8 +96,38 @@ export class HyperliquidClient {
     return { rows: [...out.values()].sort((a, b) => a.time - b.time), complete };
   }
 
-  fills(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void) {
-    return this.paged<HlFill>("userFillsByTime", user, (f) => `${f.tid}-${f.hash}`, startTime, maxPages, onProgress);
+  /**
+   * Every fill, TWAP slices included: Hyperliquid leaves those out of userFillsByTime, so a
+   * trader using TWAP orders would otherwise have positions jump between fills.
+   */
+  async fills(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void): Promise<Paged<HlFill>> {
+    const [plain, twap] = await Promise.all([
+      this.paged<HlFill>("userFillsByTime", user, fillId, startTime, maxPages, onProgress),
+      this.twapFills(user, startTime, maxPages),
+    ]);
+    if (!twap.rows.length) return plain;
+    // A list that stopped at the page limit only covers up to its last row, so the merged list is
+    // only whole up to the earlier stop; anything later waits for the next fetch, which starts there.
+    const end = (p: Paged<HlFill>) => (p.complete ? Infinity : p.rows.at(-1)!.time);
+    const cut = Math.min(end(plain), end(twap));
+    const tids = new Set(plain.rows.map((f) => f.tid));
+    const rows = [...plain.rows, ...twap.rows.filter((f) => !tids.has(f.tid))].filter((f) => f.time <= cut).sort((a, b) => a.time - b.time);
+    return { rows, complete: plain.complete && twap.complete };
+  }
+
+  /** TWAP slices from `startTime`, oldest first, like userFillsByTime. */
+  private async twapFills(user: string, startTime: number, maxPages?: number): Promise<Paged<HlFill>> {
+    const unwrap = (r: { fill: HlFill }) => r.fill;
+    try {
+      // Not in Hyperliquid's docs (Oct 2026), but pages by time like the other fill endpoints.
+      return await this.paged("userTwapSliceFillsByTime", user, fillId, startTime, maxPages, undefined, unwrap);
+    } catch (e) {
+      // If it ever goes away (a 4xx), fall back to the documented endpoint: the latest 2,000 only.
+      if (!(e instanceof Error && /returned 4\d\d/.test(e.message))) throw e;
+      const recent = (await this.info<{ fill: HlFill }[]>({ type: "userTwapSliceFills", user })).map(unwrap);
+      const rows = recent.filter((f) => f.time >= startTime).sort((a, b) => a.time - b.time);
+      return { rows, complete: recent.length < TWAP_RECENT_MAX };
+    }
   }
 
   funding(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void) {

@@ -1,6 +1,7 @@
 // Hyperliquid's REST weights, from its rate-limit docs: 1,200 per minute per IP, shared.
 const LIGHT = new Set(["l2Book", "allMids", "clearinghouseState", "orderStatus", "spotClearinghouseState", "exchangeStatus"]);
-const PER_ITEM = new Set(["userFills", "userFillsByTime", "userFunding", "fundingHistory", "historicalOrders", "recentTrades"]);
+// TWAP slice endpoints aren't in the docs' list; counting them per item errs on the safe side.
+const PER_ITEM = new Set(["userFills", "userFillsByTime", "userFunding", "fundingHistory", "historicalOrders", "recentTrades", "userTwapSliceFills", "userTwapSliceFillsByTime"]);
 
 export const baseWeight = (type: string) => (LIGHT.has(type) ? 2 : type === "userRole" ? 60 : 20);
 /** Extra weight charged per 20 items returned. */
