@@ -29,7 +29,9 @@ export type Trade = {
 const EPS = 1e-9;
 const sgn = (x: number) => (Math.abs(x) <= EPS * Math.max(1, Math.abs(x)) ? 0 : x > 0 ? 1 : -1);
 const dirOf = (s: number): Direction => (s > 0 ? "long" : "short");
-const samePos = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(b));
+// Only float rounding (~1e-16 relative) separates positions that are the same. A looser 1e-6 let
+// a 2.6M NEAR position mistake fills under 2.6 NEAR apart for each other and split into fake trades.
+const samePos = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
 const afterOf = (f: Fill) => f.startPosition + (f.side === "buy" ? f.sz : -f.sz);
 
 /**

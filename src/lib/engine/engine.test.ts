@@ -84,6 +84,21 @@ describe("buildTrades", () => {
     expect(trades[0].entryAvg).toBeCloseTo(299 / 3);
   });
 
+  it("keeps a huge position's small same-millisecond fills in order", () => {
+    // A 2.6M NEAR position adding in fills under 1 NEAR: starting positions only a fraction of a
+    // coin apart must still chain exactly, or the trade splits into dozens of fake ones.
+    const big = 2_600_000;
+    const trades = buildTrades([
+      fill({ id: "a", side: "buy", sz: big, px: 5, startPosition: 0, time: 1 }),
+      fill({ id: "1", side: "buy", sz: 50, px: 5, startPosition: big + 1.1, time: 2 }),
+      fill({ id: "5", side: "buy", sz: 0.4, px: 5, startPosition: big + 51.1, time: 2 }),
+      fill({ id: "9", side: "buy", sz: 1.1, px: 5, startPosition: big, time: 2 }),
+      fill({ id: "b", side: "sell", sz: big + 51.5, px: 6, startPosition: big + 51.5, time: 3, closedPnl: 2_600_051.5 }),
+    ]);
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({ status: "closed", partialHistory: false, fillCount: 5 });
+  });
+
   it("orders a same-millisecond flip correctly even when it is the first group we see", () => {
     const trades = buildTrades([
       fill({ id: "1", side: "buy", sz: 3, px: 100, startPosition: -1, time: 1, closedPnl: 1 }),
