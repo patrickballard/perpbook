@@ -10,7 +10,10 @@ const WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export function PnlCalendar({ days }: { days: Day[] }) {
   const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
   const latest = days.at(-1)?.date ?? new Date().toLocaleDateString("en-CA");
-  const [cursor, setCursor] = useState(() => latest.slice(0, 7));
+  // Show the newest month until the visitor picks another, so a refresh that brings in a new
+  // month moves the calendar to it instead of leaving it on the month it opened on.
+  const [picked, setPicked] = useState<string | null>(null);
+  const cursor = picked ?? latest.slice(0, 7);
 
   const [y, m] = cursor.split("-").map(Number);
   const first = new Date(y, m - 1, 1);
@@ -27,7 +30,8 @@ export function PnlCalendar({ days }: { days: Day[] }) {
 
   const shift = (k: number) => {
     const d = new Date(y, m - 1 + k, 1);
-    setCursor(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    setPicked(month === latest.slice(0, 7) ? null : month); // back on the newest: follow it again
   };
   const firstMonth = days[0]?.date.slice(0, 7) ?? cursor;
   const lastMonth = latest.slice(0, 7);

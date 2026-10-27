@@ -3,6 +3,7 @@
 // so each one a trader posts points back here.
 
 import type { Reconciliation, TradeStats } from "./engine/stats";
+import type { Trade } from "./engine/trades";
 import { moneyHeadline, pct, ratio } from "./format";
 
 export type CardData = {
@@ -10,34 +11,34 @@ export type CardData = {
   net: number;
   period: string | null; // "12 Aug – 26 Oct 2026"
   stats: { label: string; value: string }[];
-  series: number[]; // cumulative net PnL by day, from 0
+  series: number[]; // cumulative net PnL trade by trade, from 0, ending at `net`
   matches: boolean;
   host: string;
 };
 
-const day = (iso: string, withYear: boolean) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}), timeZone: "UTC" });
+const day = (ms: number, withYear: boolean) =>
+  new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
 
-export function cardData(input: {
-  label: string;
-  stats: TradeStats;
-  equity: { date: string; cumulative: number }[];
-  reconciliation: Reconciliation | null;
-  host: string;
-}): CardData {
-  const { stats, equity } = input;
-  const first = equity[0]?.date;
-  const last = equity.at(-1)?.date;
+export function cardData(input: { label: string; stats: TradeStats; trades: Trade[]; reconciliation: Reconciliation | null; host: string }): CardData {
+  const { stats } = input;
+  // The headline is closed trades' net PnL, so the line is too, closed trade by closed trade, and
+  // ends exactly where the headline says. (Daily account PnL also counts funding on open
+  // positions, so a line from it ended somewhere else.)
+  const closed = input.trades.filter((t) => t.status === "closed").sort((a, b) => a.closedAt! - b.closedAt!);
+  let c = 0;
+  const first = closed.length ? Math.min(...closed.map((t) => t.openedAt)) : null;
+  const last = closed.at(-1)?.closedAt ?? null;
+  const sameYear = first != null && last != null && new Date(first).getFullYear() === new Date(last).getFullYear();
   return {
     label: input.label,
     net: stats.net,
-    period: first && last ? `${day(first, first.slice(0, 4) !== last.slice(0, 4))} – ${day(last, true)}` : null,
+    period: first != null && last != null ? `${day(first, !sameYear)} – ${day(last, true)}` : null,
     stats: [
       { label: "Win rate", value: pct(stats.winRate) },
       { label: "Profit factor", value: ratio(stats.profitFactor) },
       { label: "Trades", value: stats.trades.toLocaleString("en-GB") },
     ],
-    series: [0, ...equity.map((p) => p.cumulative)],
+    series: [0, ...closed.map((t) => (c += t.netPnl))],
     matches: input.reconciliation?.matches ?? false,
     host: input.host,
   };
