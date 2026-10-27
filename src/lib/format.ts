@@ -68,12 +68,16 @@ export function moneyShort(v: number): string {
   return money(v, { compact: true, whole: true });
 }
 
-/** A headline amount that never needs to wrap: compact from $100k ("−$23.39M"), exact below. */
+/**
+ * A headline amount that fits a phone-width card: compact from $100k ("−$23.39M"), whole
+ * dollars from $10k ("+$48,210"), exact below.
+ */
 export function moneyHeadline(v: number): string {
   const s = v > 0.004 ? "+" : v < -0.004 ? "−" : "";
   const a = Math.abs(v);
   if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(2)}B`;
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
   if (a >= 1e5) return `${s}$${(a / 1e3).toFixed(1)}k`;
+  if (a >= 1e4) return `${s}$${Math.round(a).toLocaleString("en-GB")}`;
   return money(v);
 }

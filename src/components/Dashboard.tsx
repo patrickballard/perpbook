@@ -14,12 +14,18 @@ import { Reconcile } from "./Reconcile";
 import { ShareCardButton } from "./ShareCardButton";
 import { cardData } from "@/lib/card";
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }) {
+// Narrow cards wrap their sub lines; keep each amount on one line so "−" never strands from its "$65,291.45".
+const unbroken = (text: string) =>
+  text.split(/([+−]?\$[\d,.]+[kMB]?)/).map((part, i) => (i % 2 ? <span key={i} className="whitespace-nowrap">{part}</span> : part));
+
+function Kpi({ label, value, title, sub, tone }: { label: string; value: string; title?: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
-    <div className="card p-4">
+    <div className="card p-4 min-w-0">
       <div className="eyebrow">{label}</div>
-      <div className={`num text-2xl font-semibold mt-1.5 ${tone ?? ""}`}>{value}</div>
-      {sub && <div className="text-xs text-muted mt-1 num">{sub}</div>}
+      <div className={`num text-xl sm:text-2xl font-semibold mt-1.5 whitespace-nowrap ${tone ?? ""}`} title={title}>
+        {value}
+      </div>
+      {sub && <div className="text-xs text-muted mt-1 num">{unbroken(sub)}</div>}
     </div>
   );
 }
@@ -177,7 +183,8 @@ export function Dashboard({ address }: { address: string }) {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi
               label="Net PnL"
-              value={money(derived.stats.net)}
+              value={moneyHeadline(derived.stats.net)}
+              title={money(derived.stats.net)}
               tone={toneOf(derived.stats.net)}
               sub={
                 raw.fundingPending
@@ -194,7 +201,8 @@ export function Dashboard({ address }: { address: string }) {
             />
             <Kpi
               label="Per trade"
-              value={money(derived.stats.expectancy)}
+              value={derived.stats.expectancy == null ? "–" : moneyHeadline(derived.stats.expectancy)}
+              title={money(derived.stats.expectancy)}
               tone={toneOf(derived.stats.expectancy)}
               sub={`${derived.stats.trades} trades · avg hold ${duration(derived.stats.avgHoldMs)}`}
             />

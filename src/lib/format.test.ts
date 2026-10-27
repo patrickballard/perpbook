@@ -33,6 +33,8 @@ describe("moneyHeadline", () => {
     expect(moneyHeadline(-23_393_876.68)).toBe("−$23.39M");
     expect(moneyHeadline(1_418.25)).toBe("+$1,418.25");
     expect(moneyHeadline(412_300)).toBe("+$412.3k");
+    expect(moneyHeadline(-48_210.47)).toBe("−$48,210");
+    expect(moneyHeadline(9_999.99)).toBe("+$9,999.99");
     expect(moneyHeadline(-128_874_184)).toBe("−$128.87M");
     expect(moneyHeadline(2_500_000_000)).toBe("+$2.50B");
   });
