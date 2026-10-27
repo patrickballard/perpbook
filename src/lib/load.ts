@@ -16,10 +16,11 @@ import { readCache, writeCache, type CacheStore } from "./walletCache";
  * moment and can be reconciled; fetched alongside the latest fills, they're within a second of them.
  */
 export async function liveState(client: HyperliquidClient, address: string) {
-  const [chs, portfolio] = await Promise.all([client.allClearinghouses(address).catch(() => []), client.portfolio(address).catch(() => null)]);
+  const [chs, portfolio] = await Promise.all([client.allClearinghouses(address).catch(() => null), client.portfolio(address).catch(() => null)]);
   return {
-    ...normalisePositions(chs),
-    hyperliquidPnl: allTimePerpPnl(portfolio),
+    ...normalisePositions(chs ?? []),
+    // Without positions, unrealised PnL is unknown and the check would wrongly say "doesn't match".
+    hyperliquidPnl: chs ? allTimePerpPnl(portfolio) : null,
     hyperliquidSince: perpHistoryStart(portfolio),
     summary: shareStats(portfolio),
   };

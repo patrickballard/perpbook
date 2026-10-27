@@ -209,11 +209,17 @@ function attributeFunding(trades: Trade[], funding: FundingEvent[]) {
   }
   for (const list of byCoin.values()) list.sort((a, b) => a.openedAt - b.openedAt);
 
-  for (const f of funding) {
+  // One coin's trades don't overlap, so walking payments in time order only ever moves forward
+  // through its trades: one pass, rather than a search per payment (224ms for 5,000 trades).
+  const next = new Map<string, number>();
+  for (const f of [...funding].sort((a, b) => a.time - b.time)) {
     const list = byCoin.get(f.coin);
     if (!list) continue;
-    const t = list.find((x) => x.openedAt <= f.time && f.time <= (x.closedAt ?? Infinity));
-    if (!t) continue;
+    let i = next.get(f.coin) ?? 0;
+    while (i < list.length && (list[i].closedAt ?? Infinity) < f.time) i++;
+    next.set(f.coin, i);
+    const t = list[i];
+    if (!t || t.openedAt > f.time) continue;
     t.funding += f.usdc;
     t.netPnl = t.grossPnl - t.fees + t.funding;
   }

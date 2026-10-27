@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HyperliquidClient } from "./hyperliquid/client";
-import { loadFromHyperliquid, type Loaded } from "./load";
+import { liveState, loadFromHyperliquid, type Loaded } from "./load";
 import { FakeHyperliquid } from "./sync/fakeHyperliquid";
 import { CACHE_VERSION, memoryStore } from "./walletCache";
 
@@ -88,5 +88,18 @@ describe("loadFromHyperliquid", () => {
     const loaded = await loadFromHyperliquid(hl.client(), A, { ...opts, cache });
     expect(loaded.fills).toHaveLength(6);
     expect((await cache.get(A))?.version).toBe(CACHE_VERSION);
+  });
+
+  it("skips the Hyperliquid check when positions couldn't be loaded", async () => {
+    // Without positions, unrealised PnL is unknown; comparing anyway would say "doesn't match".
+    const portfolio = [["perpAllTime", { pnlHistory: [[1, "10"]], accountValueHistory: [], vlm: "0" }]];
+    const fetchImpl = (async (_u: string, init?: RequestInit) => {
+      const type = JSON.parse(String(init?.body)).type;
+      return type === "portfolio" ? new Response(JSON.stringify(portfolio)) : new Response("", { status: 400 });
+    }) as typeof fetch;
+    const live = await liveState(new HyperliquidClient(fetchImpl), A);
+    expect(live.hyperliquidPnl).toBeNull();
+    expect(live.positions).toEqual([]);
+    expect(live.summary?.allTime).toBe(10);
   });
 });

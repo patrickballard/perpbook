@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HyperliquidClient } from "./hyperliquid/client";
+import { HyperliquidClient, syncErrorMessage } from "./hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "./sync/budget";
 import { normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
@@ -48,7 +48,14 @@ const FUNDING_PAGES = 40;
 // Pace requests under Hyperliquid's per-IP limit (1,200 weight a minute) instead of bursting
 // past it: a long-lived wallet's first load needs more than a minute's budget, and bursting
 // ended in 429s and a failed sync. Paced, a big wallet loads slowly but always loads.
-const client = new HyperliquidClient(budgetedFetch(new WeightBudget(1_000)));
+const budget = new WeightBudget(1_000);
+
+/**
+ * A client for one load, sharing the page's budget. Its requests stop when the load is replaced
+ * (Refresh, another wallet, back/forward) or the page closes: left running, abandoned loads used
+ * up the budget and the wallet on screen took minutes instead of seconds.
+ */
+const clientFor = (signal: AbortSignal) => new HyperliquidClient(budgetedFetch(budget, undefined, signal));
 
 export function useWallet(address: string) {
   const demo = address === "demo";
@@ -61,10 +68,14 @@ export function useWallet(address: string) {
   // Each sync gets a number; results from an older one (e.g. still loading funding when the
   // visitor clicks Refresh) are dropped instead of overwriting newer ones.
   const generation = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
 
   const sync = useCallback(async () => {
     const me = ++generation.current;
     const current = () => generation.current === me;
+    inFlight.current?.abort();
+    const ac = (inFlight.current = new AbortController());
+    const client = clientFor(ac.signal);
     const show = (r: Raw) => current() && setRaw(r);
     const note = (m: string | null) => current() && setProgress(m);
     setStatus("loading");
@@ -132,7 +143,7 @@ export function useWallet(address: string) {
       if (current()) setStatus("ready");
     } catch (e) {
       if (!current()) return;
-      setError(e instanceof Error ? e.message : "Sync failed");
+      setError(syncErrorMessage(e));
       setStatus("error");
     } finally {
       note(null);
@@ -145,6 +156,15 @@ export function useWallet(address: string) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void sync();
   }, [sync]);
+
+  // Leaving the page stops its load, and anything that finishes late is ignored.
+  useEffect(
+    () => () => {
+      generation.current++;
+      inFlight.current?.abort();
+    },
+    [],
+  );
 
   const [trackError, setTrackError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);

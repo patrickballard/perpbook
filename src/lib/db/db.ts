@@ -28,12 +28,14 @@ export function pgDb(pool: Pool): Db {
         await c.query("begin");
         const r = await fn(clientDb(c));
         await c.query("commit");
+        c.release();
         return r;
       } catch (e) {
-        await c.query("rollback");
+        // If the connection itself broke, rollback fails too: report the original error, and
+        // destroy the connection instead of handing a broken one back to the pool.
+        await c.query("rollback").catch(() => {});
+        c.release(e instanceof Error ? e : true);
         throw e;
-      } finally {
-        c.release();
       }
     },
   };

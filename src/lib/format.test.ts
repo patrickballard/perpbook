@@ -8,6 +8,12 @@ describe("money", () => {
     expect(money(3.8, { compact: true, whole: true })).toBe("+$3.80");
     expect(money(42.4, { compact: true, whole: true })).toBe("+$42");
     expect(money(1520, { compact: true, whole: true })).toBe("+$1.5k");
+    // Millions and billions, not "+$3397k"; and no "1000k" at the boundary.
+    expect(money(3_397_000, { compact: true, whole: true })).toBe("+$3.4M");
+    expect(money(-23_390_000, { compact: true })).toBe("−$23M");
+    expect(money(999_600, { compact: true })).toBe("+$1.0M");
+    expect(money(999_400, { compact: true })).toBe("+$999k");
+    expect(money(2_500_000_000, { compact: true })).toBe("+$2.5B");
   });
 });
 

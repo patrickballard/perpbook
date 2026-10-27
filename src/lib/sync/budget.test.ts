@@ -46,4 +46,21 @@ describe("budgetedFetch", () => {
     await f("https://api.hyperliquid.xyz/info", { method: "POST", body: JSON.stringify({ type: "clearinghouseState" }) });
     expect(b.available).toBe(1_200 - 20 - 100 - 2);
   });
+
+  it("stops a cancelled load, even one waiting for budget, without spending any", async () => {
+    const t = fakeTime();
+    const b = new WeightBudget(1_200, t.clock, t.sleep);
+    b.charge(1_200); // empty: the next request has to wait
+    const ac = new AbortController();
+    let sent = 0;
+    const f = budgetedFetch(b, async () => (sent++, new Response("[]")), ac.signal);
+    const body = { method: "POST", body: JSON.stringify({ type: "userFills" }) };
+    const waiting = f("https://api.hyperliquid.xyz/info", body);
+    ac.abort(); // e.g. the visitor opened another wallet
+    await expect(waiting).rejects.toThrow();
+    expect(sent).toBe(0);
+    await expect(f("https://api.hyperliquid.xyz/info", body)).rejects.toThrow();
+    expect(sent).toBe(0);
+    expect(b.available).toBeGreaterThanOrEqual(0); // nothing taken for the cancelled requests
+  });
 });

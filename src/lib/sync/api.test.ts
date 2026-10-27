@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { testDb } from "../db/testing";
-import { migrate } from "../db/migrations";
+import { migrate, migratedOnFirstUse } from "../db/migrations";
 import { trackWallet } from "../db/store";
 import { FakeHyperliquid } from "./fakeHyperliquid";
 import { historyRequest, trackRequest, walletStatus } from "./api";
@@ -23,6 +23,11 @@ describe("trackRequest", () => {
     await trackRequest(db, addr("b"), "1.1.1.1", limits, T0);
     expect((await trackRequest(db, addr("c"), "1.1.1.1", limits, T0)).status).toBe(429);
     expect((await trackRequest(db, addr("c"), "1.1.1.1", limits, T0 + 25 * 3_600_000)).status).toBe(201);
+    // Requests over two days old are cleared out as new ones arrive: at 72h, the three from T0 go
+    // and the ones from 25h and 72h stay.
+    await trackRequest(db, addr("d"), "2.2.2.2", limits, T0 + 72 * 3_600_000);
+    const { rows } = await db.query<{ n: number }>("select count(*)::int as n from track_requests");
+    expect(rows[0].n).toBe(2);
   });
 
   it("stops adding wallets at the global cap", async () => {
@@ -56,6 +61,18 @@ describe("walletStatus and historyRequest", () => {
     expect(fills).toMatchObject({ status: 200, body: { next: null, rows: [{ coin: "BTC", side: "buy", sz: 1, px: 100 }] } });
     const funding = await historyRequest(db, A, "funding", null);
     expect(funding).toMatchObject({ status: 200, body: { rows: [{ coin: "BTC", usdc: -0.25 }] } });
+  });
+});
+
+describe("migratedOnFirstUse", () => {
+  it("brings an empty database up to date before the app's first query, once", async () => {
+    const raw = await testDb({ migrated: false });
+    let migrations = 0;
+    const counted: typeof raw = { query: raw.query, transaction: (fn) => (migrations++, raw.transaction(fn)) };
+    const db = migratedOnFirstUse(counted);
+    await Promise.all([walletStatus(db, addr("a")), walletStatus(db, addr("a"))]);
+    expect((await walletStatus(db, addr("a"))).body).toEqual({ state: "untracked" });
+    expect(migrations).toBe(1);
   });
 });
 

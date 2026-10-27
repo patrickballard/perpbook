@@ -27,11 +27,13 @@ export class WeightBudget {
     this.last = now;
   }
 
-  /** Wait until `w` is available, then spend it. */
-  async take(w: number) {
+  /** Wait until `w` is available, then spend it. Throws, spending nothing, if `signal` aborts first. */
+  async take(w: number, signal?: AbortSignal) {
+    signal?.throwIfAborted();
     this.refill();
     while (this.tokens < Math.min(w, this.perMinute)) {
       await this.sleep(Math.ceil(((Math.min(w, this.perMinute) - this.tokens) * 60_000) / this.perMinute));
+      signal?.throwIfAborted();
       this.refill();
     }
     this.tokens -= w;
@@ -49,12 +51,15 @@ export class WeightBudget {
   }
 }
 
-/** Wrap fetch so every Hyperliquid info request is paid for from `budget`. */
-export function budgetedFetch(budget: WeightBudget, fetchImpl: typeof fetch = (...a) => fetch(...a)): typeof fetch {
+/**
+ * Wrap fetch so every Hyperliquid info request is paid for from `budget`. With `signal`, requests
+ * stop when it aborts, including any still waiting for budget, so they don't use up what's left.
+ */
+export function budgetedFetch(budget: WeightBudget, fetchImpl: typeof fetch = (...a) => fetch(...a), signal?: AbortSignal): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const type = String(JSON.parse(String(init?.body ?? "{}")).type ?? "");
-    await budget.take(baseWeight(type));
-    const r = await fetchImpl(input, init);
+    await budget.take(baseWeight(type), signal);
+    const r = await fetchImpl(input, signal ? { ...init, signal } : init);
     if (r.ok && PER_ITEM.has(type)) {
       const rows = await r.clone().json().catch(() => null);
       if (Array.isArray(rows)) budget.charge(itemWeight(type, rows.length));

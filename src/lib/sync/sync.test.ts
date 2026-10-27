@@ -150,6 +150,9 @@ describe("store", () => {
     expect(decodeCursor(encodeCursor({ time: 5, id: "1-0xab" }))).toEqual({ time: 5, id: "1-0xab" });
     expect(decodeCursor("nope")).toBeNull();
     expect(decodeCursor(null)).toBeNull();
+    // Numbers Postgres can't take as a bigint would turn a bad link into a 500.
+    expect(decodeCursor("1e20:x")).toBeNull();
+    expect(decodeCursor("1.5:x")).toBeNull();
   });
 });
 
