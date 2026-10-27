@@ -134,7 +134,7 @@ export function Dashboard({ address }: { address: string }) {
         <div className="space-y-4">
           <div className="card px-4 py-3 text-sm text-ink-2">
             <span className="font-medium text-ink">This wallet is too active to rebuild trade by trade here.</span> It has more fills than perpbook
-            loads in one go{raw.fills[0] ? ` (over ${raw.fills.length.toLocaleString("en-GB")} since ${new Date(raw.fills[0].time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })})` : ""}, and
+            loads in one go{raw.fills.length ? ` (it stopped after ${raw.fills.length.toLocaleString("en-GB")})` : ""}, and
             numbers rebuilt from part of its history would be wrong. These are Hyperliquid&apos;s own totals instead.
           </div>
           {raw.summary ? (
