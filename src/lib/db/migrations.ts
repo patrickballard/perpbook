@@ -55,6 +55,11 @@ const MIGRATIONS: string[] = [
   );
   create index track_requests_ip_at on track_requests (ip, at);
   `,
+  /* 2: TWAP slices, which syncs before Oct 2026 never fetched. New wallets get them from their
+     first sync; wallets with history need their older slices fetched once. */ `
+  alter table wallets add column twap_backfilled boolean not null default true;
+  update wallets set twap_backfilled = false where last_fill_time is not null;
+  `,
 ];
 
 /**

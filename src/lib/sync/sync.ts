@@ -1,5 +1,5 @@
 import type { Db } from "../db/db";
-import { countFills, failSync, finishSync, getWallet, insertFills, insertFunding, recordGap, type Gap } from "../db/store";
+import { countFills, failSync, finishSync, getWallet, insertFills, insertFunding, markTwapBackfilled, recordGap, type Gap } from "../db/store";
 import type { HyperliquidClient } from "../hyperliquid/client";
 
 const MIN = 60_000;
@@ -63,8 +63,14 @@ export async function syncWallet(db: Db, client: HyperliquidClient, address: str
   // Stopped at the page limit: there's more history to fetch, so come back soon rather than on the usual schedule.
   const complete = fillsPage.complete && fundingPage.complete;
 
+  // Syncs before Oct 2026 didn't fetch TWAP slices: fetch this wallet's older ones once. Newer ones
+  // came with the fills above; anything fetched twice is skipped on insert.
+  const backfill = w.twapBackfilled ? null : await client.twapFills(address, 0);
+
   return db.transaction(async (tx) => {
     const newFills = await insertFills(tx, address, fills);
+    const backfilled = backfill ? await insertFills(tx, address, backfill.rows) : 0;
+    if (backfill?.complete) await markTwapBackfilled(tx, address);
     const newFunding = await insertFunding(tx, address, funding);
     if (gap) await recordGap(tx, address, gap);
 
@@ -81,7 +87,7 @@ export async function syncWallet(db: Db, client: HyperliquidClient, address: str
     const nextSyncAt = now + (complete ? nextInterval(fillsPerHour, now - lastActive > IDLE_AFTER) : MIN_INTERVAL);
 
     await finishSync(tx, address, { lastFillTime, lastFundingTime, fillsPerHour, nextSyncAt, now });
-    return { newFills, newFunding, gap, nextSyncAt, complete };
+    return { newFills: newFills + backfilled, newFunding, gap, nextSyncAt, complete };
   });
 }
 

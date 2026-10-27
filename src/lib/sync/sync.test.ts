@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { testDb } from "../db/testing";
 import { claimDueWallet, type Cursor, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, nextDueAt, trackWallet } from "../db/store";
 import { normaliseFills } from "../hyperliquid/normalise";
@@ -35,6 +35,33 @@ describe("syncWallet", () => {
     expect(r).toMatchObject({ newFills: 2, newFunding: 1, gap: null });
     const w = await getWallet(db, A);
     expect(w).toMatchObject({ lastFillTime: T0 + 2 * H, lastFundingTime: T0 + H, syncError: null, lastSyncedAt: T0 + 3 * H });
+  });
+
+  it("stores TWAP slices, and fetches older ones once for wallets saved before it did", async () => {
+    const db = await testDb();
+    const hl = new FakeHyperliquid();
+    hl.trade(T0, "sell", 2);
+    hl.twap(T0 + H, "sell", 1);
+    hl.trade(T0 + 2 * H, "buy", 3);
+    await trackWallet(db, A, T0 + 3 * H);
+    expect((await syncWallet(db, hl.client(), A, T0 + 3 * H)).newFills).toBe(3);
+
+    // As if saved by the previous release: the slice never stored, flagged for a backfill.
+    await db.query("delete from fills where raw->>'hash' like '0x000%'");
+    await db.query("update wallets set twap_backfilled = false");
+    hl.twap(T0 + 4 * H, "sell", 1);
+    const r = await syncWallet(db, hl.client(), A, T0 + 5 * H);
+    expect(r.newFills).toBe(2); // the old slice and the new one
+    expect(await getWallet(db, A)).toMatchObject({ twapBackfilled: true });
+    const trades = buildTrades(normaliseFills(await allFills(db)));
+    expect(trades.map((t) => [t.status, t.partialHistory])).toEqual([["closed", false], ["open", false]]);
+
+    // Once done, no more fetching slices from the very beginning.
+    const client = hl.client();
+    const twapFills = vi.spyOn(client, "twapFills");
+    await syncWallet(db, client, A, T0 + 6 * H);
+    expect(twapFills.mock.calls.filter(([, start]) => start === 0)).toHaveLength(0);
+    expect(twapFills).toHaveBeenCalled(); // the regular fetch of new fills still asks for new slices
   });
 
   it("keeps history that has fallen out of Hyperliquid's window", async () => {

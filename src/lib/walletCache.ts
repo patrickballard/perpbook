@@ -4,8 +4,11 @@
 
 import type { Fill, FundingEvent } from "./hyperliquid/types";
 
-/** Bump when normalised fills or funding change shape, so old copies are ignored. */
-export const CACHE_VERSION = 1;
+/**
+ * Bump when normalised fills or funding change shape, or old copies lack something, so they're
+ * ignored. 2: copies saved before TWAP slices were fetched don't have the older ones.
+ */
+export const CACHE_VERSION = 2;
 
 /** Wallets kept per browser; opening more drops the ones saved longest ago. */
 export const CACHE_WALLETS = 20;
