@@ -36,10 +36,33 @@ export async function walletStatus(db: Db, address: string, now = Date.now()): P
 
 export type TrackLimits = { perIpPerDay: number; maxWallets: number };
 
-export const trackLimits = (): TrackLimits => ({
-  perIpPerDay: Number(process.env.TRACK_PER_IP_PER_DAY ?? 3),
-  maxWallets: Number(process.env.MAX_TRACKED_WALLETS ?? 2_000),
+/** A whole number ≥ 0 from the environment, or the default: a typo mustn't quietly turn a limit off. */
+function limitFrom(name: string, fallback: number, env: Record<string, string | undefined>): number {
+  const raw = env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (Number.isInteger(n) && n >= 0) return n;
+  console.warn(`${name}=${JSON.stringify(raw)} isn't a whole number; using ${fallback}.`);
+  return fallback;
+}
+
+export const trackLimits = (env: Record<string, string | undefined> = process.env): TrackLimits => ({
+  perIpPerDay: limitFrom("TRACK_PER_IP_PER_DAY", 3, env),
+  maxWallets: limitFrom("MAX_TRACKED_WALLETS", 2_000, env),
 });
+
+/**
+ * Who's asking, for the per-IP limit, from a header only a trusted proxy can set. Anyone can send
+ * X-Forwarded-For, so reading it on a server with no proxy in front let one visitor claim a new
+ * IP per request. Vercel sets X-Real-IP itself. Behind your own proxy, name the header it sets in
+ * CLIENT_IP_HEADER; for X-Forwarded-For the last entry is the one your proxy added. With neither,
+ * every visitor shares one allowance: stricter, but it can't be dodged.
+ */
+export function clientIp(headers: Headers, env: Record<string, string | undefined> = process.env): string {
+  const name = env.CLIENT_IP_HEADER?.trim() || (env.VERCEL === "1" ? "x-real-ip" : "");
+  const value = name ? headers.get(name) : null;
+  return value?.split(",").at(-1)?.trim() || "unknown";
+}
 
 /** Until there are accounts, anyone can ask us to keep a wallet's history; these limits bound the cost. */
 export async function trackRequest(db: Db, address: string, ip: string, limits: TrackLimits, now = Date.now()): Promise<ApiResult<{ tracked: true; created: boolean }>> {

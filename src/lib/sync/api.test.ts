@@ -3,7 +3,7 @@ import { testDb } from "../db/testing";
 import { migrate, migratedOnFirstUse } from "../db/migrations";
 import { trackWallet } from "../db/store";
 import { FakeHyperliquid } from "./fakeHyperliquid";
-import { historyRequest, trackRequest, walletStatus } from "./api";
+import { clientIp, historyRequest, trackLimits, trackRequest, walletStatus } from "./api";
 import { syncWallet } from "./sync";
 
 const addr = (c: string) => "0x" + c.repeat(40);
@@ -34,6 +34,31 @@ describe("trackRequest", () => {
     const db = await testDb();
     for (const c of "abc") await trackWallet(db, addr(c), T0);
     expect((await trackRequest(db, addr("d"), "1.1.1.1", limits, T0)).status).toBe(503);
+  });
+});
+
+describe("clientIp", () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  it("uses only a header a trusted proxy sets", () => {
+    // On Vercel: X-Real-IP, which Vercel sets; a forged X-Forwarded-For is ignored.
+    expect(clientIp(h({ "x-real-ip": "1.1.1.1", "x-forwarded-for": "9.9.9.9" }), { VERCEL: "1" })).toBe("1.1.1.1");
+    // Behind your own proxy: the header you name, last entry (the one your proxy added).
+    expect(clientIp(h({ "x-forwarded-for": "9.9.9.9, 2.2.2.2" }), { CLIENT_IP_HEADER: "x-forwarded-for" })).toBe("2.2.2.2");
+    expect(clientIp(h({ "cf-connecting-ip": "3.3.3.3" }), { CLIENT_IP_HEADER: "cf-connecting-ip" })).toBe("3.3.3.3");
+  });
+
+  it("doesn't trust headers anyone could send when nothing says which to trust", () => {
+    expect(clientIp(h({ "x-forwarded-for": "9.9.9.9", "x-real-ip": "8.8.8.8" }), {})).toBe("unknown");
+    expect(clientIp(h({}), { VERCEL: "1" })).toBe("unknown");
+  });
+});
+
+describe("trackLimits", () => {
+  it("reads whole numbers and falls back on anything else instead of switching the limit off", () => {
+    expect(trackLimits({})).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "10", MAX_TRACKED_WALLETS: "0" })).toEqual({ perIpPerDay: 10, maxWallets: 0 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "three", MAX_TRACKED_WALLETS: "-5" })).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "2.5", MAX_TRACKED_WALLETS: " " })).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
   });
 });
 

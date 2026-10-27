@@ -75,7 +75,8 @@ The container restarts on its own after crashes and reboots. One server keeps ab
 
 ## Optional settings (Vercel environment variables)
 
-- `TRACK_PER_IP_PER_DAY` (default 3) and `MAX_TRACKED_WALLETS` (default 2,000): limits on who can start saving wallets while there are no accounts.
+- `TRACK_PER_IP_PER_DAY` (default 3) and `MAX_TRACKED_WALLETS` (default 2,000): limits on who can start saving wallets while there are no accounts. A value that isn't a whole number falls back to the default.
+- `CLIENT_IP_HEADER`: only when self-hosting behind your own reverse proxy, the header it sets to the visitor's IP (e.g. `x-forwarded-for`). Vercel needs nothing here.
 
 ## Backups
 

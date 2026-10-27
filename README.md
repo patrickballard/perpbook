@@ -66,6 +66,7 @@ DATABASE_URL=postgres://… npm run worker
 | `DATABASE_URL` | unset | Postgres connection string. Unset turns storage off. |
 | `HL_WEIGHT_PER_MINUTE` | `1000` | The worker's share of Hyperliquid's 1,200 per-IP budget. Run one worker per IP. |
 | `TRACK_PER_IP_PER_DAY` | `3` | New wallets one visitor can save per day. |
+| `CLIENT_IP_HEADER` | unset | The header your reverse proxy sets to the visitor's IP (e.g. `x-forwarded-for`, `cf-connecting-ip`), for the per-visitor limit. Not needed on Vercel. Unset elsewhere, all visitors share one daily allowance, since any visitor could fake an IP header. |
 | `MAX_TRACKED_WALLETS` | `2000` | Stop accepting new wallets past this. |
 | `MAX_FILLS_PER_WALLET` | `50000` | Stop saving a wallet's fills past this, so one whale can't fill a free database. |
 | `SITE_URL` | unset | Public URL, e.g. `https://perpbook.example`, so share images get absolute links. Not needed on Vercel. |

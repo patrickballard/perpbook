@@ -82,7 +82,7 @@ export function Dashboard({ address }: { address: string }) {
           filename={`perpbook-${demo ? "demo" : `${address.slice(0, 6)}-${address.slice(-4)}`}.png`}
           data={
             derived && full && !raw?.fundingPending && typeof window !== "undefined"
-              ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, equity: derived.equity, reconciliation: derived.reconciliation, host: window.location.host })
+              ? cardData({ label: demo ? "Demo account" : shortAddress(address), stats: derived.stats, trades: derived.trades, reconciliation: derived.reconciliation, host: window.location.host })
               : null
           }
         />
