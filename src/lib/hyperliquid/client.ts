@@ -5,6 +5,12 @@ export const HL_INFO_URL = "https://api.hyperliquid.xyz/info";
 
 export const isAddress = (s: string) => /^0x[0-9a-fA-F]{40}$/.test(s.trim());
 
+/** The wallet address in pasted text such as an explorer link, if it holds exactly one; else the text, trimmed. */
+export function addressIn(text: string): string {
+  const found = new Set((text.match(/0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g) ?? []).map((a) => a.toLowerCase()));
+  return found.size === 1 ? [...found][0] : text.trim();
+}
+
 type FetchLike = typeof fetch;
 
 /** Rows from a paged endpoint, and whether we reached the end or stopped at the page limit. */

@@ -27,7 +27,7 @@ export function EquityChart({ points }: { points: Point[] }) {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    const ro = new ResizeObserver(([e]) => setW(Math.max(200, Math.round(e.contentRect.width))));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -71,11 +71,13 @@ export function EquityChart({ points }: { points: Point[] }) {
         viewBox={`0 0 ${W} ${H}`}
         width={W}
         height={H}
-        className="block max-w-full touch-none"
+        // pan-y: a vertical swipe that starts on the chart still scrolls the page; a sideways one scrubs it.
+        className="block max-w-full touch-pan-y"
         role="img"
         aria-label={`Cumulative PnL, ${money(last)} over ${points.length} trading days`}
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
+        onPointerCancel={() => setHover(null)}
       >
         {geo.ticks.map((t) => (
           <g key={t}>

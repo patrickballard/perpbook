@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useWallet } from "@/lib/useWallet";
 import { compactUsd } from "@/lib/share";
 import type { OpenPosition } from "@/lib/hyperliquid/types";
-import { duration, money, moneyHeadline, pct, price, ratio, shortAddress, size } from "@/lib/format";
+import { count, duration, money, moneyHeadline, pct, price, ratio, shortAddress, size } from "@/lib/format";
 import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
@@ -20,9 +20,14 @@ const unbroken = (text: string) =>
 
 function Kpi({ label, value, title, sub, tone }: { label: string; value: string; title?: string; sub?: string; tone?: "up" | "down" | "flat" }) {
   return (
-    <div className="card p-4 min-w-0">
+    <div className="card p-4 min-w-0" style={{ containerType: "inline-size" }}>
       <div className="eyebrow">{label}</div>
-      <div className={`num text-xl sm:text-2xl font-semibold mt-1.5 whitespace-nowrap ${tone ?? ""}`} title={title}>
+      {/* Shrink a long value to the card's width (a mono digit is ~0.6em wide) so it never spills out on a small phone. */}
+      <div
+        className={`num font-semibold mt-1.5 whitespace-nowrap ${tone ?? ""}`}
+        style={{ fontSize: `min(1.5rem, ${(100 / (value.length * 0.62)).toFixed(1)}cqi)` }}
+        title={title}
+      >
         {value}
       </div>
       {sub && <div className="text-xs text-muted mt-1 num">{unbroken(sub)}</div>}
@@ -204,14 +209,14 @@ export function Dashboard({ address }: { address: string }) {
               value={derived.stats.expectancy == null ? "–" : moneyHeadline(derived.stats.expectancy)}
               title={money(derived.stats.expectancy)}
               tone={toneOf(derived.stats.expectancy)}
-              sub={`${derived.stats.trades} trades · avg hold ${duration(derived.stats.avgHoldMs)}`}
+              sub={`${count(derived.stats.trades, "trade")} · avg hold ${duration(derived.stats.avgHoldMs)}`}
             />
           </div>
 
           {derived.reconciliation && !raw.fundingPending && <Reconcile r={derived.reconciliation} firstFillTime={raw.fills[0]?.time ?? null} hyperliquidSince={raw.hyperliquidSince} />}
 
           <div className="grid lg:grid-cols-5 gap-4 items-start">
-            <Section title="Equity" hint="Cumulative net PnL by day" className="lg:col-span-3">
+            <Section title="Equity" hint="Realised PnL by day" className="lg:col-span-3">
               <EquityChart points={derived.equity} />
             </Section>
             <Section title="Calendar" hint={derived.streak > 1 ? `${derived.streak} green days in a row` : undefined} className="lg:col-span-2">
