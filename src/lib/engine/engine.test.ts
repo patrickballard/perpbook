@@ -176,12 +176,14 @@ describe("normaliseFills", () => {
     ...p,
   });
 
-  it("drops spot fills and duplicates, keeps builder perps", () => {
+  it("drops spot and outcome fills and duplicates, keeps builder perps", () => {
     const out = normaliseFills([
       raw({}),
       raw({}), // duplicate
       raw({ coin: "@107", dir: "Buy", tid: 2 }),
       raw({ coin: "PURR/USDC", dir: "Sell", tid: 3 }),
+      raw({ coin: "#9211", dir: "Buy", tid: 5 }),
+      raw({ coin: "#9211", dir: "Settlement", side: "A", startPosition: "1.0", closedPnl: "-0.3", tid: 6 }),
       raw({ coin: "xyz:TSLA", dir: "Open Short", side: "A", tid: 4 }),
     ]);
     expect(out.map((f) => f.coin)).toEqual(["BTC", "xyz:TSLA"]);

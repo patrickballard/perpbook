@@ -28,11 +28,13 @@ const PERP_DIRS = new Set([
 ]);
 
 /**
- * Spot fills use coins like "@107" or "PURR/USDC" and dirs "Buy"/"Sell".
+ * Spot fills use coins like "@107" or "PURR/USDC" and dirs "Buy"/"Sell". Outcome contracts
+ * ("#9211") trade like spot and pay out with a "Settlement" fill; Hyperliquid's perps PnL leaves
+ * them out (checked Oct 2026), so we do too, or a settlement looks like a position from nowhere.
  * Builder-deployed perps (HIP-3) look like "xyz:TSLA" and are kept.
  */
 export function isPerpFill(f: HlFill): boolean {
-  if (f.coin.startsWith("@") || f.coin.includes("/")) return false;
+  if (f.coin.startsWith("@") || f.coin.startsWith("#") || f.coin.includes("/")) return false;
   if (PERP_DIRS.has(f.dir)) return true;
   // Unknown dir strings: keep if a position size was recorded.
   return f.dir !== "Buy" && f.dir !== "Sell";
