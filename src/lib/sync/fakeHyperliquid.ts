@@ -8,7 +8,11 @@ import type { HlFill, HlFunding } from "../hyperliquid/types";
  */
 export class FakeHyperliquid {
   fills: HlFill[] = [];
+  /** TWAP slices, which (like Hyperliquid) only the TWAP endpoints return. */
+  twaps: HlFill[] = [];
   funding: HlFunding[] = [];
+  /** Answer the undocumented userTwapSliceFillsByTime; off, it fails like an unknown request type. */
+  twapByTime = true;
   requests: string[] = [];
   private tid = 0;
   private pos = 0;
@@ -19,7 +23,7 @@ export class FakeHyperliquid {
   ) {}
 
   /** Trade on one coin, keeping startPosition consistent like Hyperliquid does. */
-  trade(time: number, side: "buy" | "sell", sz: number, px = 100, coin = "BTC"): HlFill {
+  trade(time: number, side: "buy" | "sell", sz: number, px = 100, coin = "BTC", twap = false): HlFill {
     const f: HlFill = {
       coin,
       px: String(px),
@@ -29,15 +33,20 @@ export class FakeHyperliquid {
       startPosition: String(this.pos),
       dir: side === "buy" ? "Open Long" : "Close Long",
       closedPnl: "0",
-      hash: `0x${(++this.tid).toString(16)}`,
+      hash: twap ? `0x${"0".repeat(64)}` : `0x${(++this.tid).toString(16)}`,
       oid: this.tid,
       crossed: true,
       fee: "0.01",
-      tid: this.tid,
+      tid: twap ? ++this.tid : this.tid,
     };
     this.pos += side === "buy" ? sz : -sz;
-    this.fills.push(f);
+    (twap ? this.twaps : this.fills).push(f);
     return f;
+  }
+
+  /** A slice of a TWAP order: a fill only the TWAP endpoints report. */
+  twap(time: number, side: "buy" | "sell", sz: number, px = 100, coin = "BTC"): HlFill {
+    return this.trade(time, side, sz, px, coin, true);
   }
 
   pay(time: number, usdc: number, coin = "BTC") {
@@ -50,8 +59,18 @@ export class FakeHyperliquid {
     const inRange = <T extends { time: number }>(rows: T[]) =>
       rows.filter((r) => r.time >= body.startTime && r.time <= (body.endTime ?? Infinity)).slice(0, this.pageSize);
     const available = [...this.fills].sort((a, b) => a.time - b.time).slice(-this.window);
+    const twaps = [...this.twaps].sort((a, b) => a.time - b.time);
+    const wrap = (rows: HlFill[]) => rows.map((fill) => ({ fill, twapId: 1 }));
     const data =
-      body.type === "userFillsByTime" ? inRange(available) : body.type === "userFunding" ? inRange([...this.funding].sort((a, b) => a.time - b.time)) : null;
+      body.type === "userFillsByTime"
+        ? inRange(available)
+        : body.type === "userFunding"
+          ? inRange([...this.funding].sort((a, b) => a.time - b.time))
+          : body.type === "userTwapSliceFillsByTime" && this.twapByTime
+            ? wrap(inRange(twaps))
+            : body.type === "userTwapSliceFills"
+              ? wrap(twaps.slice(-2_000).reverse())
+              : null;
     return new Response(JSON.stringify(data), { status: data ? 200 : 422 });
   }) as typeof fetch;
 
