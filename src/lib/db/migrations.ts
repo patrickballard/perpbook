@@ -79,3 +79,20 @@ export async function migrate(db: Db): Promise<number> {
     return MIGRATIONS.length - current;
   });
 }
+
+/**
+ * Bring the schema up to date before the first query, so a release that adds a column works the
+ * moment it's deployed rather than when the worker next runs. Already up to date, it's one query.
+ */
+export function migratedOnFirstUse(inner: Db): Db {
+  let ready: Promise<unknown> | null = null;
+  const first = () =>
+    (ready ??= migrate(inner).catch((e) => {
+      ready = null; // try again on the next request
+      throw e;
+    }));
+  return {
+    query: async (text, params) => (await first(), inner.query(text, params)),
+    transaction: async (fn) => (await first(), inner.transaction(fn)),
+  };
+}

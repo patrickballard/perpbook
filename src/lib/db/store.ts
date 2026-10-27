@@ -71,6 +71,8 @@ export async function countWallets(db: Db): Promise<number> {
 /** Log a track request and return how many this IP has made in the last day, including it. */
 export async function logTrackRequest(db: Db, ip: string, address: string, now = Date.now()): Promise<number> {
   await db.query(`insert into track_requests (ip, address, at) values ($2, $3, ${ts})`, [now, ip, address]);
+  // Only the last day counts, so older rows are dead weight.
+  await db.query(`delete from track_requests where at < ${ts} - interval '2 days'`, [now]);
   const { rows } = await db.query<{ n: number }>(
     `select count(distinct address)::int as n from track_requests where ip = $2 and at > ${ts} - interval '1 day'`,
     [now, ip],
@@ -169,7 +171,8 @@ export function decodeCursor(s: string | null | undefined): Cursor | null {
   const i = s?.indexOf(":") ?? -1;
   if (!s || i < 1) return null;
   const time = Number(s.slice(0, i));
-  return Number.isFinite(time) ? { time, id: s.slice(i + 1) } : null;
+  // Anything else (e.g. "1e20") would fail Postgres's bigint cast and turn a bad link into a 500.
+  return Number.isSafeInteger(time) ? { time, id: s.slice(i + 1) } : null;
 }
 
 /** One page of stored raw rows, oldest first, after `cursor`. */

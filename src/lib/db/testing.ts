@@ -20,10 +20,10 @@ function txDb(t: Transaction): Db {
   return self;
 }
 
-/** A fresh, migrated, in-memory Postgres for one test. */
-export async function testDb(): Promise<Db> {
+/** A fresh in-memory Postgres for one test, migrated unless asked not to be. */
+export async function testDb({ migrated = true } = {}): Promise<Db> {
   const pg = new PGlite();
   const db: Db = { query: query(pg), transaction: (fn) => pg.transaction((t) => fn(txDb(t))) };
-  await migrate(db);
+  if (migrated) await migrate(db);
   return db;
 }
