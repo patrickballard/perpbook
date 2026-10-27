@@ -7,7 +7,10 @@ export function money(
   const s = !sign ? "" : v > 0.004 ? "+" : v < -0.004 ? "−" : "";
   const a = Math.abs(v);
   let body: string;
-  if (compact && a >= 10_000) body = `${(a / 1000).toFixed(0)}k`;
+  // Switch unit where rounding would otherwise print "1000k" or "1000M".
+  if (compact && a >= 999.5e6) body = `${(a / 1e9).toFixed(a >= 9.95e9 ? 0 : 1)}B`;
+  else if (compact && a >= 999_500) body = `${(a / 1e6).toFixed(a >= 9.95e6 ? 0 : 1)}M`;
+  else if (compact && a >= 10_000) body = `${(a / 1000).toFixed(0)}k`;
   else if (compact && a >= 1000) body = `${(a / 1000).toFixed(1)}k`;
   // Whole dollars only from $10: below that, rounding turns +$0.19 into "+$0".
   else if ((compact && a >= 100) || (whole && a >= 10)) body = a.toFixed(0);
