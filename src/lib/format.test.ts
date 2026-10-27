@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { money, moneyHeadline, moneyShort } from "./format";
+import { count, money, moneyHeadline, moneyShort } from "./format";
 
 describe("money", () => {
   it("keeps cents on small amounts even when asked for whole dollars", () => {
@@ -25,6 +25,14 @@ describe("moneyShort", () => {
     expect(moneyShort(-9.94)).toBe("−$9.9");
     expect(moneyShort(149.2)).toBe("+$149");
     expect(moneyShort(0.001)).toBe("0¢");
+  });
+});
+
+describe("count", () => {
+  it("only pluralises when it isn't one", () => {
+    expect(count(1, "trade")).toBe("1 trade");
+    expect(count(0, "trade")).toBe("0 trades");
+    expect(count(1234, "trade")).toBe("1,234 trades");
   });
 });
 

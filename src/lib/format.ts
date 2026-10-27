@@ -18,6 +18,9 @@ export function money(
   return `${s}$${body}`;
 }
 
+/** "1 trade", "2 trades", "1,234 trades". */
+export const count = (n: number, noun: string) => `${n.toLocaleString("en-GB")} ${noun}${n === 1 ? "" : "s"}`;
+
 export const pct = (v: number | null | undefined, digits = 0) =>
   v == null || Number.isNaN(v) ? "–" : `${(v * 100).toFixed(digits)}%`;
 

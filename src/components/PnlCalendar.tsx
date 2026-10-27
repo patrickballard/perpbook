@@ -14,6 +14,9 @@ export function PnlCalendar({ days }: { days: Day[] }) {
   // month moves the calendar to it instead of leaving it on the month it opened on.
   const [picked, setPicked] = useState<string | null>(null);
   const cursor = picked ?? latest.slice(0, 7);
+  // A tapped day's full numbers; phones have no hover to show the cell's title.
+  const [tapped, setTapped] = useState<string | null>(null);
+  const tappedDay = tapped?.startsWith(cursor) ? byDate.get(tapped) : undefined;
 
   const [y, m] = cursor.split("-").map(Number);
   const first = new Date(y, m - 1, 1);
@@ -78,10 +81,14 @@ export function PnlCalendar({ days }: { days: Day[] }) {
           const active = d && Math.abs(net) > 0.004;
           const strength = active ? 0.18 + 0.62 * Math.min(1, Math.abs(net) / maxAbs) : 0;
           return (
-            <div
+            <button
+              type="button"
               key={key}
+              disabled={!active}
+              onClick={() => setTapped(tapped === key ? null : key)}
+              aria-label={active ? `${key}: ${money(net)}` : key}
               title={active ? `${key}: ${money(net)} (fees ${money(-d!.fees)}, funding ${money(d!.funding)})` : key}
-              className="relative aspect-square rounded-md flex flex-col items-start justify-between p-1 sm:p-1.5 text-left"
+              className={`relative aspect-square rounded-md flex flex-col items-start justify-between p-1 sm:p-1.5 text-left ${tapped === key ? "ring-2 ring-[var(--accent)]" : ""}`}
               style={{
                 background: active
                   ? `color-mix(in oklab, ${net > 0 ? "var(--up)" : "var(--down)"} ${Math.round(strength * 100)}%, var(--surface))`
@@ -92,13 +99,21 @@ export function PnlCalendar({ days }: { days: Day[] }) {
               <span className="text-[10px] sm:text-[11px] text-ink-2 leading-none">{day}</span>
               {active && (
                 <span className="num text-[10px] sm:text-[11px] font-medium leading-none text-ink truncate w-full">
-                  {moneyShort(net)}
+                  {/* Phone cells are ~5 characters wide: drop the "$" there so the number shows, not "−$2…". */}
+                  <span className="sm:hidden">{moneyShort(net).replace("$", "")}</span>
+                  <span className="hidden sm:inline">{moneyShort(net)}</span>
                 </span>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
+      {tappedDay && (
+        <p className="text-xs text-ink-2 num mt-2">
+          {new Date(tappedDay.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}:{" "}
+          <span className={tappedDay.net >= 0 ? "up" : "down"}>{money(tappedDay.net)}</span> · fees {money(-tappedDay.fees)} · funding {money(tappedDay.funding)}
+        </p>
+      )}
     </div>
   );
 }

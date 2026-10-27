@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Trade } from "@/lib/engine/trades";
-import { duration, money, price, size, when } from "@/lib/format";
+import { count, duration, money, price, size, when } from "@/lib/format";
 
 type Filter = "all" | "wins" | "losses" | "open";
 
@@ -58,7 +58,7 @@ export function TradesTable({ trades }: { trades: Trade[] }) {
             </option>
           ))}
         </select>
-        <span className="text-xs text-muted ml-auto">{rows.length} trades</span>
+        <span className="text-xs text-muted ml-auto">{count(rows.length, "trade")}</span>
       </div>
 
       <div className="overflow-x-auto -mx-4 sm:mx-0">

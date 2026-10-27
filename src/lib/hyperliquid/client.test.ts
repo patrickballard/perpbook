@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HyperliquidClient } from "./client";
+import { addressIn, HyperliquidClient } from "./client";
 
 /** A fetch that answers with the given statuses in turn; 200s return `[]`. */
 function scripted(statuses: number[], headers: Record<string, string> = {}) {
@@ -42,5 +42,18 @@ describe("HyperliquidClient", () => {
     const c = new HyperliquidClient(fetchImpl, undefined, async () => {});
     await expect(c.info({ type: "meta" })).rejects.toThrow("Hyperliquid returned 422");
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("addressIn", () => {
+  const a = "0xf9f8383cd2f0c8b4378cf44036f66143271ef2e5";
+  it("finds the one address in a pasted explorer link", () => {
+    expect(addressIn(`https://hypurrscan.io/address/${a.toUpperCase().replace("0X", "0x")}`)).toBe(a);
+    expect(addressIn(`  ${a}  `)).toBe(a);
+  });
+  it("leaves text alone when it has no address, two different ones, or a longer hash", () => {
+    expect(addressIn(" hello ")).toBe("hello");
+    expect(addressIn(`${a} 0x${"1".repeat(40)}`)).toBe(`${a} 0x${"1".repeat(40)}`);
+    expect(addressIn(`0x${"ab".repeat(32)}`)).toBe(`0x${"ab".repeat(32)}`);
   });
 });

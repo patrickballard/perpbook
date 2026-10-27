@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { isAddress } from "@/lib/hyperliquid/client";
+import { addressIn, isAddress } from "@/lib/hyperliquid/client";
 
 export function AddressForm() {
   const router = useRouter();
@@ -13,7 +13,7 @@ export function AddressForm() {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        const v = value.trim();
+        const v = addressIn(value); // also takes a pasted explorer link
         if (!isAddress(v)) {
           setError("That doesn't look like a wallet address (0x followed by 40 characters).");
           return;
@@ -29,7 +29,7 @@ export function AddressForm() {
             setValue(e.target.value);
             setError(null);
           }}
-          placeholder="0x… your Hyperliquid wallet address"
+          placeholder="0x… your Hyperliquid address"
           spellCheck={false}
           autoComplete="off"
           aria-label="Wallet address"

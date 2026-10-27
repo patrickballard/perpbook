@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Bucket } from "@/lib/engine/stats";
-import { money, pct } from "@/lib/format";
+import { count, money, pct } from "@/lib/format";
 
 const winRate = (b: Bucket) => (b.wins + b.losses ? b.wins / (b.wins + b.losses) : null);
 
@@ -16,7 +16,7 @@ export function HBars({ buckets, limit = 8 }: { buckets: Bucket[]; limit?: numbe
       {rows.map((b) => {
         const w = (Math.abs(b.net) / max) * 50;
         return (
-          <div key={b.label} className="grid grid-cols-[96px_1fr_72px] items-center gap-2 text-sm group" title={`${b.trades} trades · win rate ${pct(winRate(b))}`}>
+          <div key={b.label} className="grid grid-cols-[96px_1fr_72px] items-center gap-2 text-sm group" title={`${count(b.trades, "trade")} · win rate ${pct(winRate(b))}`}>
             <span className="truncate text-ink-2" title={b.label}>{b.label}</span>
             <div className="relative h-5">
               <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--axis)]" />
@@ -78,11 +78,19 @@ export function VBars({ buckets, labelEvery = 1 }: { buckets: Bucket[]; labelEve
         ))}
       </div>
       {hb && (
-        <div className="tip" style={{ left: `${(hover! + 0.5) * W}%`, top: -8, transform: "translate(-50%, -100%)" }}>
+        // Centred over its bar, except at the ends, where it leans inwards so a phone doesn't cut it off.
+        <div
+          className="tip"
+          style={{
+            left: `${(hover! + 0.5) * W}%`,
+            top: -8,
+            transform: `translate(${hover! < buckets.length / 4 ? "-15%" : hover! >= (buckets.length * 3) / 4 ? "-85%" : "-50%"}, -100%)`,
+          }}
+        >
           <div className="text-muted">{hb.label}</div>
           <div className={`num font-medium ${hb.net >= 0 ? "up" : "down"}`}>{money(hb.net)}</div>
           <div className="text-muted num">
-            {hb.trades} trades · {pct(winRate(hb))} win
+            {count(hb.trades, "trade")} · {pct(winRate(hb))} win
           </div>
         </div>
       )}
