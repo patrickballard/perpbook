@@ -43,10 +43,18 @@ function siteHost(): string {
   return siteUrl()?.host ?? "github.com/patrickballard/perpbook";
 }
 
+// One quick try: the client's usual retries (up to 14s when rate limited) could outlast the
+// function's time limit, and then the link gets no preview at all instead of the generic card.
+const cardClient = new HyperliquidClient(
+  (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(5_000) }),
+  undefined,
+  () => Promise.reject(new Error("no retries for share cards")),
+);
+
 async function statsFor(address: string): Promise<ShareStats | null> {
   if (address === "demo") return demoShareStats();
   if (!isAddress(address)) return null;
-  return shareStats(await new HyperliquidClient().portfolio(address.toLowerCase()).catch(() => null));
+  return shareStats(await cardClient.portfolio(address.toLowerCase()).catch(() => null));
 }
 
 export default async function Image({ params }: { params: Promise<{ address: string }> }) {

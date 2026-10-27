@@ -25,10 +25,12 @@ export async function renderCard(data: CardData): Promise<Blob> {
  */
 export function ShareCardButton({ data, filename }: { data: CardData | null; filename: string }) {
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function share() {
     if (!data) return;
     setBusy(true);
+    setFailed(false);
     try {
       const blob = await renderCard(data);
       const file = new File([blob], filename, { type: "image/png" });
@@ -43,6 +45,8 @@ export function ShareCardButton({ data, filename }: { data: CardData | null; fil
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
       }
+    } catch {
+      setFailed(true); // e.g. a browser that blocks canvas; say so rather than doing nothing
     } finally {
       setBusy(false);
     }
@@ -50,7 +54,7 @@ export function ShareCardButton({ data, filename }: { data: CardData | null; fil
 
   return (
     <button onClick={() => void share()} disabled={!data || busy} className="h-9 px-3 rounded-lg border border-line text-sm hover:bg-raised disabled:opacity-50">
-      {busy ? "Drawing…" : "Share card"}
+      {busy ? "Drawing…" : failed ? "Couldn't draw card" : "Share card"}
     </button>
   );
 }
