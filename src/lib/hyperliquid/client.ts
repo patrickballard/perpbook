@@ -1,3 +1,4 @@
+import { fillId } from "./normalise";
 import type { HlClearinghouseState, HlFill, HlFunding, HlPortfolio } from "./types";
 
 export const HL_INFO_URL = "https://api.hyperliquid.xyz/info";
@@ -17,7 +18,6 @@ export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in
 /** Most TWAP slices the documented `userTwapSliceFills` returns (the newest ones). */
 const TWAP_RECENT_MAX = 2_000;
 
-const fillId = (f: HlFill) => `${f.tid}-${f.hash}`;
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -115,8 +115,8 @@ export class HyperliquidClient {
     return { rows, complete: plain.complete && twap.complete };
   }
 
-  /** TWAP slices from `startTime`, oldest first, like userFillsByTime. */
-  private async twapFills(user: string, startTime: number, maxPages?: number): Promise<Paged<HlFill>> {
+  /** TWAP slices from `startTime`, oldest first, like userFillsByTime. fills() includes them already. */
+  async twapFills(user: string, startTime: number, maxPages?: number): Promise<Paged<HlFill>> {
     const unwrap = (r: { fill: HlFill }) => r.fill;
     try {
       // Not in Hyperliquid's docs (Oct 2026), but pages by time like the other fill endpoints.

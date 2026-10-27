@@ -12,6 +12,8 @@ export type Wallet = {
   lastSyncedAt: number | null;
   lastViewedAt: number | null;
   syncError: string | null;
+  /** Whether TWAP slices from before Oct 2026 (when syncs started fetching them) are stored. */
+  twapBackfilled: boolean;
 };
 
 export type Gap = { fromTime: number; toTime: number };
@@ -25,7 +27,8 @@ const WALLET_COLS = `address,
   extract(epoch from next_sync_at) * 1000 as "nextSyncAt",
   extract(epoch from last_synced_at) * 1000 as "lastSyncedAt",
   extract(epoch from last_viewed_at) * 1000 as "lastViewedAt",
-  sync_error as "syncError"`;
+  sync_error as "syncError",
+  twap_backfilled as "twapBackfilled"`;
 
 const ts = "to_timestamp($1::float8 / 1000)";
 
@@ -41,6 +44,7 @@ const toWallet = (r: Record<string, unknown>): Wallet => {
     lastSyncedAt: n(r.lastSyncedAt),
     lastViewedAt: n(r.lastViewedAt),
     syncError: (r.syncError as string | null) ?? null,
+    twapBackfilled: Boolean(r.twapBackfilled),
   };
 };
 
@@ -128,6 +132,10 @@ export async function finishSync(
      where address = $1`,
     [address, s.lastFillTime, s.lastFundingTime, s.fillsPerHour, s.nextSyncAt, s.now],
   );
+}
+
+export async function markTwapBackfilled(db: Db, address: string) {
+  await db.query("update wallets set twap_backfilled = true where address = $1", [address]);
 }
 
 export async function failSync(db: Db, address: string, error: string, retryAt: number) {
