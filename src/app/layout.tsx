@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  // Absolute URLs for share images; Vercel deployments work it out without this.
-  metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : undefined,
+  // Absolute URLs for share images and canonical links. Next works out images on Vercel by itself,
+  // but leaves canonical links relative, so use the production address there too.
+  metadataBase: siteUrl() ?? undefined,
   // Says "Hyperliquid": that's the word people (and AI search) put in front of "trading journal".
   title: "perpbook · free Hyperliquid trading journal and PnL tracker",
   description:
