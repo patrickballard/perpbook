@@ -3,7 +3,7 @@
 [![CI](https://github.com/patrickballard/perpbook/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/perpbook/actions/workflows/ci.yml)
 [![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue)](LICENSE)
 
-**The open-source trading journal for Hyperliquid.** Paste a wallet address and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is. No API keys, no CSVs, no manual entry.
+**The free, open-source trading journal and PnL tracker for Hyperliquid.** Paste a wallet address and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is. No API keys, no CSVs, no manual entry.
 
 **[Try it on perpbook.vercel.app](https://perpbook.vercel.app)** · [Demo account](https://perpbook.vercel.app/w/demo) · [Self-host in one command](#self-hosting)
 

@@ -1,0 +1,20 @@
+name: Tell search engines about new pages
+
+# Vercel reports each deployment back to GitHub; once production is live, submit the sitemap.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+jobs:
+  indexnow:
+    # Only the hosted perpbook: a fork's deployments have their own address.
+    if: github.repository == 'patrickballard/perpbook' && (github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run indexnow -- https://perpbook.vercel.app

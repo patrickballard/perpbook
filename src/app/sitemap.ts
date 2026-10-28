@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { GUIDES } from "@/lib/guides";
 import { siteUrl } from "@/lib/site";
 
 // Per request, so a SITE_URL set only at runtime (self-hosting) is still used.
@@ -13,5 +14,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: new URL("/", base).toString(), changeFrequency: "weekly", priority: 1 },
     { url: new URL("/w/demo", base).toString(), changeFrequency: "daily", priority: 0.8 },
     { url: new URL("/league", base).toString(), changeFrequency: "hourly", priority: 0.9 },
+    ...GUIDES.map((g) => ({ url: new URL(`/${g.slug}`, base).toString(), changeFrequency: "monthly" as const, priority: 0.8 })),
   ];
 }

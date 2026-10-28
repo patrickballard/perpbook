@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AddressForm } from "@/components/AddressForm";
 import { FAQ } from "@/lib/faq";
+import { GUIDES } from "@/lib/guides";
 import { siteUrl } from "@/lib/site";
 
 const REPO = "https://github.com/patrickballard/perpbook";
@@ -142,6 +143,11 @@ export default function Home() {
           Open source on GitHub
         </a>
         <span>AGPL-3.0</span>
+        {GUIDES.map((g) => (
+          <Link key={g.slug} href={`/${g.slug}`} className="underline underline-offset-2 hover:text-ink-2">
+            {g.label}
+          </Link>
+        ))}
       </footer>
     </main>
   );
