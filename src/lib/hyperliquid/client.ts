@@ -1,4 +1,4 @@
-import { fillId } from "./normalise";
+import { fillId, fundingId } from "./normalise";
 import type { HlClearinghouseState, HlFill, HlFunding, HlPortfolio } from "./types";
 
 export const HL_INFO_URL = "https://api.hyperliquid.xyz/info";
@@ -16,8 +16,11 @@ type FetchLike = typeof fetch;
 /** Rows from a paged endpoint, and whether we reached the end or stopped at the page limit. */
 export type Paged<T> = { rows: T[]; complete: boolean };
 
-/** Waits before each retry of a rate-limited (429) or failing (5xx) request. */
-const RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
+/**
+ * Waits before each retry of a rate-limited (429) or failing (5xx) request. Hyperliquid's limit is per
+ * minute, so the last wait takes the total past one: a busy minute makes a load slow, not fail.
+ */
+const RETRY_DELAYS_MS = [1_000, 3_000, 10_000, 50_000];
 
 export const RATE_LIMITED = "Hyperliquid is rate limiting requests; try again in a minute";
 
@@ -40,6 +43,11 @@ export function syncErrorMessage(e: unknown): string {
 /** Most TWAP slices the documented `userTwapSliceFills` returns (the newest ones). */
 const TWAP_RECENT_MAX = 2_000;
 
+/**
+ * A page this big that adds nothing new is stuck inside one millisecond: Hyperliquid pages by time, so
+ * it can't page within one. A real end of history repeats only the few rows at the boundary.
+ */
+const STUCK_PAGE = 500;
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -91,10 +99,13 @@ export class HyperliquidClient {
     const out = new Map<string, T>();
     let start = startTime;
     let complete = false;
+    let skipped = false;
     for (let i = 0; i < maxPages; i++) {
       const raw = await this.info<Raw[]>({ type, user, startTime: start, endTime: Date.now() });
-      const batch = Array.isArray(raw) ? raw.map(unwrap) : raw;
-      if (!Array.isArray(batch) || batch.length === 0) {
+      // Anything but a list is an error, not the end of the history; taking it as the end cached part of a wallet as all of it.
+      if (!Array.isArray(raw)) throw new Error(`Hyperliquid returned an unexpected ${type} response`);
+      const batch = raw.map(unwrap);
+      if (batch.length === 0) {
         complete = true;
         break;
       }
@@ -107,6 +118,13 @@ export class HyperliquidClient {
         }
       }
       if (added === 0) {
+        if (batch.length >= STUCK_PAGE && batch.every((r) => r.time === start)) {
+          // More rows in one millisecond than a page holds (a whale's liquidation can do it): step past it
+          // and report the history as incomplete, instead of stopping here and calling it the end.
+          start += 1;
+          skipped = true;
+          continue;
+        }
         complete = true;
         break;
       }
@@ -115,7 +133,7 @@ export class HyperliquidClient {
     }
     // Stopping at maxPages used to look exactly like the end of history, so very active wallets
     // (James Wynn has 300,000+ fills) were shown as if a fraction of their trades were all of them.
-    return { rows: [...out.values()].sort((a, b) => a.time - b.time), complete };
+    return { rows: [...out.values()].sort((a, b) => a.time - b.time), complete: complete && !skipped };
   }
 
   /**
@@ -153,7 +171,7 @@ export class HyperliquidClient {
   }
 
   funding(user: string, startTime = 0, maxPages?: number, onProgress?: (rows: number) => void) {
-    return this.paged<HlFunding>("userFunding", user, (f) => `${f.hash}-${f.time}-${f.delta?.coin}`, startTime, maxPages, onProgress);
+    return this.paged<HlFunding>("userFunding", user, fundingId, startTime, maxPages, onProgress);
   }
 
   private dexs?: { at: number; names: Promise<string[]> };

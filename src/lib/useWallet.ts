@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HyperliquidClient, syncErrorMessage } from "./hyperliquid/client";
-import { budgetedFetch, WeightBudget } from "./sync/budget";
+import { budgetedFetch, localBudgetStore, WeightBudget } from "./sync/budget";
 import { normaliseFills, normaliseFunding, normalisePositions } from "./hyperliquid/normalise";
 import type { Fill, FundingEvent, OpenPosition } from "./hyperliquid/types";
 import { buildTrades } from "./engine/trades";
@@ -48,7 +48,9 @@ const FUNDING_PAGES = 40;
 // Pace requests under Hyperliquid's per-IP limit (1,200 weight a minute) instead of bursting
 // past it: a long-lived wallet's first load needs more than a minute's budget, and bursting
 // ended in 429s and a failed sync. Paced, a big wallet loads slowly but always loads.
-const budget = new WeightBudget(1_000);
+// Shared by every perpbook tab in the browser: they all count against the same IP, and a few whale
+// links opened in new tabs, each with a full budget of its own, ran past it into failed loads.
+const budget = new WeightBudget(1_000, undefined, undefined, (typeof window !== "undefined" && localBudgetStore("perpbook:hl-budget")) || undefined);
 
 /**
  * A client for one load, sharing the page's budget. Its requests stop when the load is replaced
@@ -109,10 +111,13 @@ export function useWallet(address: string) {
           // Saved history from perpbook, then only what's newer straight from Hyperliquid.
           const stored = await getStoredHistory(address, fetch, loading("saved history"));
           const since = lastTime(stored.fills);
+          // More saved than the browser loads: the page will show Hyperliquid's totals, so newer fills would go unused.
+          const skip = Promise.resolve({ rows: [], complete: false });
           const [fills, funding, live] = await Promise.all([
-            client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")),
-            client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
-            liveState(client, address), // again: the saved history took a while, and the check needs totals from the same moment as the newest fills
+            stored.complete ? client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")) : skip,
+            stored.complete ? client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES) : skip,
+            // Again if the check will run: the saved history took a while, and it needs totals from the moment of the newest fills.
+            stored.complete ? liveState(client, address) : asked,
           ]);
           show({
             fills: mergeById(stored.fills, normaliseFills(fills.rows)),

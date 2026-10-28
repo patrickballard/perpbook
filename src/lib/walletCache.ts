@@ -22,9 +22,14 @@ export type CacheStore = {
   prune(keep: number): Promise<void>;
 };
 
+/** IndexedDB can stall (blocked by another tab, a private window): give up rather than leave the page loading. */
+const CACHE_WAIT_MS = 3_000;
+const within = <T>(p: Promise<T> | undefined, ms = CACHE_WAIT_MS) =>
+  Promise.race([p, new Promise<undefined>((r) => setTimeout(r, ms))]);
+
 export async function readCache(store: CacheStore | null, address: string): Promise<CachedWallet | null> {
   try {
-    const c = await store?.get(address);
+    const c = await within(store?.get(address));
     return c && c.version === CACHE_VERSION && Array.isArray(c.fills) && Array.isArray(c.funding) ? c : null;
   } catch {
     return null;
@@ -33,8 +38,7 @@ export async function readCache(store: CacheStore | null, address: string): Prom
 
 export async function writeCache(store: CacheStore | null, address: string, fills: Fill[], funding: FundingEvent[]) {
   try {
-    await store?.set(address, { version: CACHE_VERSION, fills, funding, savedAt: Date.now() });
-    await store?.prune(CACHE_WALLETS);
+    await within(store?.set(address, { version: CACHE_VERSION, fills, funding, savedAt: Date.now() }).then(() => store.prune(CACHE_WALLETS)));
   } catch {
     // Full storage, private browsing, blocked IndexedDB: the next visit simply loads everything.
   }
@@ -63,6 +67,7 @@ function open(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("IndexedDB is open at an older version in another tab"));
   });
 }
 

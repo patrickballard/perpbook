@@ -1,7 +1,7 @@
 // What the /api/w/[address] routes do, kept free of Next.js so it can be tested against PGlite.
 
 import type { Db } from "../db/db";
-import { countWallets, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, logTrackRequest, touchWallet, trackWallet, type Gap } from "../db/store";
+import { countWallets, databaseBytes, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, logTrackRequest, touchWallet, trackWallet, type Gap } from "../db/store";
 import { normaliseFills, normaliseFunding } from "../hyperliquid/normalise";
 import type { Fill, FundingEvent, HlFill, HlFunding } from "../hyperliquid/types";
 
@@ -34,7 +34,7 @@ export async function walletStatus(db: Db, address: string, now = Date.now()): P
   };
 }
 
-export type TrackLimits = { perIpPerDay: number; maxWallets: number };
+export type TrackLimits = { perIpPerDay: number; maxWallets: number; storageMb: number };
 
 /** A whole number ≥ 0 from the environment, or the default: a typo mustn't quietly turn a limit off. */
 function limitFrom(name: string, fallback: number, env: Record<string, string | undefined>): number {
@@ -49,7 +49,15 @@ function limitFrom(name: string, fallback: number, env: Record<string, string | 
 export const trackLimits = (env: Record<string, string | undefined> = process.env): TrackLimits => ({
   perIpPerDay: limitFrom("TRACK_PER_IP_PER_DAY", 3, env),
   maxWallets: limitFrom("MAX_TRACKED_WALLETS", 2_000, env),
+  storageMb: storageLimitMb(env),
 });
+
+/**
+ * Stop saving at this database size. The other limits bound how many wallets are saved, not how
+ * big they get: about 15 whales at the per-wallet cap would fill Neon's free 0.5 GB by themselves.
+ */
+export const storageLimitMb = (env: Record<string, string | undefined> = process.env) => limitFrom("STORAGE_LIMIT_MB", 400, env);
+export const storageFull = async (db: Db, limitMb = storageLimitMb()) => (await databaseBytes(db)) >= limitMb * 1024 * 1024;
 
 /**
  * Who's asking, for the per-IP limit, from a header only a trusted proxy can set. Anyone can send
@@ -70,8 +78,8 @@ export async function trackRequest(db: Db, address: string, ip: string, limits: 
   if ((await logTrackRequest(db, ip, address, now)) > limits.perIpPerDay) {
     return { status: 429, body: { error: `You can start tracking ${limits.perIpPerDay} wallets a day. Try again tomorrow.` } };
   }
-  if ((await countWallets(db)) >= limits.maxWallets) {
-    return { status: 503, body: { error: "perpbook is tracking as many wallets as it can for now. Try again soon." } };
+  if ((await countWallets(db)) >= limits.maxWallets || (await storageFull(db, limits.storageMb))) {
+    return { status: 503, body: { error: "perpbook is saving as many wallets as it can for now. The dashboard still loads live from Hyperliquid." } };
   }
   const created = await trackWallet(db, address, now);
   return { status: created ? 201 : 200, body: { tracked: true, created } };

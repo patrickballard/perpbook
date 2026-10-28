@@ -1,6 +1,10 @@
 import type { Db } from "../db/db";
 import { countFills, failSync, finishSync, getWallet, insertFills, insertFunding, markTwapBackfilled, recordGap, type Gap } from "../db/store";
 import type { HyperliquidClient } from "../hyperliquid/client";
+import { storageFull } from "./api";
+import { STORAGE_FULL, TOO_MANY_FILLS } from "./messages";
+
+export { TOO_MANY_FILLS };
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -26,8 +30,6 @@ export function nextInterval(fillsPerHour: number, idle: boolean): number {
 export const maxStoredFills = () => Number(process.env.MAX_FILLS_PER_WALLET ?? 50_000);
 const FILLS_PER_PAGE = 2_000; // Hyperliquid's page size for userFillsByTime
 
-export const TOO_MANY_FILLS = "This wallet has more fills than perpbook saves per wallet";
-
 export type SyncResult = { newFills: number; newFunding: number; gap: Gap | null; nextSyncAt: number; complete: boolean; capped?: boolean };
 
 /**
@@ -41,14 +43,16 @@ export async function syncWallet(db: Db, client: HyperliquidClient, address: str
   const w = await getWallet(db, address);
   if (!w) throw new Error(`${address} is not tracked`);
 
-  // Stop at the per-wallet cap and check back daily, rather than filling the database.
+  // Stop at the per-wallet cap, or when the database is full, and check back daily rather than fail inserts.
   const room = cap - (await countFills(db, address));
-  if (room <= 0) {
-    await failSync(db, address, `${TOO_MANY_FILLS} (${cap.toLocaleString("en-GB")}).`, now + DAY);
+  const full = room > 0 && (await storageFull(db));
+  if (room <= 0 || full) {
+    await failSync(db, address, full ? `${STORAGE_FULL}.` : `${TOO_MANY_FILLS} (${cap.toLocaleString("en-GB")}).`, now + DAY);
     return { newFills: 0, newFunding: 0, gap: null, nextSyncAt: now + DAY, complete: false, capped: true };
   }
+  const pages = Math.min(60, Math.ceil(room / FILLS_PER_PAGE));
 
-  const fillsPage = await client.fills(address, w.lastFillTime ?? 0, Math.min(60, Math.ceil(room / FILLS_PER_PAGE)));
+  const fillsPage = await client.fills(address, w.lastFillTime ?? 0, pages);
   const fills = fillsPage.rows;
   const firstFillTime = fills[0]?.time ?? null;
   const gap =
@@ -63,14 +67,15 @@ export async function syncWallet(db: Db, client: HyperliquidClient, address: str
   // Stopped at the page limit: there's more history to fetch, so come back soon rather than on the usual schedule.
   const complete = fillsPage.complete && fundingPage.complete;
 
-  // Syncs before Oct 2026 didn't fetch TWAP slices: fetch this wallet's older ones once. Newer ones
-  // came with the fills above; anything fetched twice is skipped on insert.
-  const backfill = w.twapBackfilled ? null : await client.twapFills(address, 0);
+  // Syncs before Oct 2026 didn't fetch TWAP slices: fetch this wallet's older ones once, within the
+  // same cap. Newer ones came with the fills above; anything fetched twice is skipped on insert.
+  const backfill = w.twapBackfilled ? null : await client.twapFills(address, 0, pages);
 
   return db.transaction(async (tx) => {
     const newFills = await insertFills(tx, address, fills);
     const backfilled = backfill ? await insertFills(tx, address, backfill.rows) : 0;
-    if (backfill?.complete) await markTwapBackfilled(tx, address);
+    // Done even if the cap cut it short: refetching up to 60 pages every sync would starve the other wallets.
+    if (backfill) await markTwapBackfilled(tx, address);
     const newFunding = await insertFunding(tx, address, funding);
     if (gap) await recordGap(tx, address, gap);
 

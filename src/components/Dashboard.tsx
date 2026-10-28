@@ -5,7 +5,7 @@ import { useWallet } from "@/lib/useWallet";
 import { compactUsd } from "@/lib/share";
 import type { OpenPosition } from "@/lib/hyperliquid/types";
 import type { ShareStats } from "@/lib/share";
-import { count, duration, money, moneyHeadline, pct, price, ratio, shortAddress, size } from "@/lib/format";
+import { count, duration, money, moneyHeadline, pct, price, ratio, shortAddress, size, tone } from "@/lib/format";
 import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
 import { HBars, VBars } from "./Bars";
@@ -48,8 +48,6 @@ function Section({ title, hint, children, className = "" }: { title: string; hin
   );
 }
 
-const toneOf = (v: number | null | undefined) => (v == null ? "flat" : v > 0.004 ? "up" : v < -0.004 ? "down" : "flat");
-
 function OpenPositions({ positions }: { positions: OpenPosition[] }) {
   return (
     <div className="space-y-1.5">
@@ -63,7 +61,7 @@ function OpenPositions({ positions }: { positions: OpenPosition[] }) {
             <span className="hidden sm:inline">{size(p.size)} </span>@ {price(p.entryPx)}
             {p.leverage ? <span className="hidden sm:inline"> · {p.leverage}x</span> : null}
           </span>
-          <span className={`num ml-auto shrink-0 whitespace-nowrap font-medium ${toneOf(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
+          <span className={`num ml-auto shrink-0 whitespace-nowrap font-medium ${tone(p.unrealizedPnl)}`}>{money(p.unrealizedPnl)}</span>
         </div>
       ))}
     </div>
@@ -76,8 +74,8 @@ function HyperliquidTotals({ summary, positions, missing }: { summary: ShareStat
     <>
       {summary ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          <Kpi label="All-time PnL" value={moneyHeadline(summary.allTime)} tone={toneOf(summary.allTime)} sub="perps, after fees and funding · from Hyperliquid" />
-          <Kpi label="Last 30 days" value={summary.month == null ? "–" : moneyHeadline(summary.month)} tone={toneOf(summary.month)} sub="from Hyperliquid" />
+          <Kpi label="All-time PnL" value={moneyHeadline(summary.allTime)} tone={tone(summary.allTime)} sub="perps, after fees and funding · from Hyperliquid" />
+          <Kpi label="Last 30 days" value={summary.month == null ? "–" : moneyHeadline(summary.month)} tone={tone(summary.month)} sub="from Hyperliquid" />
           <Kpi label="Volume" value={compactUsd(summary.volume)} sub="all-time perps · from Hyperliquid" />
         </div>
       ) : (
@@ -94,8 +92,8 @@ function HyperliquidTotals({ summary, positions, missing }: { summary: ShareStat
 
 export function Dashboard({ address }: { address: string }) {
   const { status, error, raw, derived, sync, demo, track, tracking, trackError, progress, early } = useWallet(address);
-  // A first load that's taking a while: show Hyperliquid's totals instead of an empty page until the trades are rebuilt.
-  const preview = status === "loading" && !raw ? early : null;
+  // A first load that's taking a while, or that failed: Hyperliquid's totals rather than an empty page.
+  const preview = !raw && (status === "loading" || status === "error") ? early : null;
   // Nothing to journal: no perp fills and nothing open. Usually the wrong address was pasted.
   const empty = !!raw?.complete && raw.fills.length === 0 && raw.positions.length === 0;
   const full = !!raw?.complete && !empty;
@@ -149,16 +147,18 @@ export function Dashboard({ address }: { address: string }) {
 
       {preview && (
         <div className="space-y-4">
-          <div className="card px-4 py-3" aria-live="polite">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
-              <span className="font-medium">Rebuilding every trade…</span>
-              {progress && <span className="num text-xs text-muted">{progress.replace(" from Hyperliquid", "")}</span>}
+          {status === "loading" && (
+            <div className="card px-4 py-3" aria-live="polite">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+                <span className="font-medium">Rebuilding every trade…</span>
+                {progress && <span className="num text-xs text-muted">{progress.replace(" from Hyperliquid", "")}</span>}
+              </div>
+              <div className="mt-2.5 h-1 rounded-full bg-[var(--flat)] overflow-hidden">
+                <div className="loading-bar h-full w-1/3 rounded-full bg-[var(--accent)]" />
+              </div>
+              <p className="text-xs text-muted mt-2">Active wallets can take a minute or two. Meanwhile, these are Hyperliquid&apos;s own totals.</p>
             </div>
-            <div className="mt-2.5 h-1 rounded-full bg-[var(--flat)] overflow-hidden">
-              <div className="loading-bar h-full w-1/3 rounded-full bg-[var(--accent)]" />
-            </div>
-            <p className="text-xs text-muted mt-2">Active wallets can take a minute or two. Meanwhile, these are Hyperliquid&apos;s own totals.</p>
-          </div>
+          )}
           <HyperliquidTotals summary={preview.summary} positions={preview.positions} />
         </div>
       )}
@@ -222,7 +222,7 @@ export function Dashboard({ address }: { address: string }) {
               label="Net PnL"
               value={moneyHeadline(derived.stats.net)}
               title={money(derived.stats.net)}
-              tone={toneOf(derived.stats.net)}
+              tone={tone(derived.stats.net)}
               sub={
                 raw.fundingPending
                   ? `after ${money(derived.stats.fees, { sign: false })} fees · funding still loading…`
@@ -240,7 +240,7 @@ export function Dashboard({ address }: { address: string }) {
               label="Per trade"
               value={derived.stats.expectancy == null ? "–" : moneyHeadline(derived.stats.expectancy)}
               title={money(derived.stats.expectancy)}
-              tone={toneOf(derived.stats.expectancy)}
+              tone={tone(derived.stats.expectancy)}
               sub={`${count(derived.stats.trades, "trade")} · avg hold ${duration(derived.stats.avgHoldMs)}`}
             />
           </div>

@@ -49,18 +49,25 @@ export function duration(ms: number | null | undefined): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-export const tone = (v: number) => (v > 0.004 ? "up" : v < -0.004 ? "down" : "flat");
+export const tone = (v: number | null | undefined) => (v == null ? "flat" : v > 0.004 ? "up" : v < -0.004 ? "down" : "flat");
 
 export const shortAddress = (a: string) => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
 
-export function when(ms: number): string {
-  return new Date(ms).toLocaleString("en-GB", {
+/** "13 Mar, 14:02", with the year when it isn't this one: a wallet's trades can span years. */
+export function when(ms: number, now = Date.now()): string {
+  const d = new Date(ms);
+  return d.toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
+    ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" } : {}),
     hour: "2-digit",
     minute: "2-digit",
   });
 }
+
+/** "13 Mar 2025", or "13 Mar" without the year. */
+export const day = (ms: number, withYear = true) =>
+  new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
 
 /** For tight spaces like calendar cells: cents under $1, one decimal under $10, then as money(). */
 export function moneyShort(v: number): string {
@@ -78,8 +85,9 @@ export function moneyShort(v: number): string {
 export function moneyHeadline(v: number): string {
   const s = v > 0.004 ? "+" : v < -0.004 ? "−" : "";
   const a = Math.abs(v);
-  if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(2)}B`;
-  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
+  // Switch unit where rounding would otherwise print "1000.0k" or "1000.00M".
+  if (a >= 999.995e6) return `${s}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 999_950) return `${s}$${(a / 1e6).toFixed(2)}M`;
   if (a >= 1e5) return `${s}$${(a / 1e3).toFixed(1)}k`;
   if (a >= 1e4) return `${s}$${Math.round(a).toLocaleString("en-GB")}`;
   return money(v);
