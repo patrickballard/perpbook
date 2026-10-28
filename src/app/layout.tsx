@@ -7,9 +7,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   // Absolute URLs for share images; Vercel deployments work it out without this.
   metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : undefined,
-  title: "perpbook · open-source trading journal for perps",
+  // Says "Hyperliquid": that's the word people (and AI search) put in front of "trading journal".
+  title: "perpbook · free Hyperliquid trading journal and PnL tracker",
   description:
-    "Paste a Hyperliquid wallet and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is.",
+    "Free, open-source trading journal for Hyperliquid perps. Paste a wallet and get every trade rebuilt, your real PnL after fees and funding, and where your edge actually is.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

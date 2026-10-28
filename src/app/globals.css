@@ -127,3 +127,8 @@ body {
     opacity: 0.4;
   }
 }
+
+/* Safari still draws the disclosure triangle on a list-none summary. */
+summary::-webkit-details-marker {
+  display: none;
+}

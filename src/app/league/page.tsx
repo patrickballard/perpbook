@@ -16,7 +16,7 @@ export const maxDuration = 60;
 const season = currentSeason();
 
 export const metadata: Metadata = {
-  title: `perpbook league · ${season.name}`,
+  title: `perpbook league · ${season.name} · Hyperliquid trading competition`,
   description: "A week of Hyperliquid perps, ranked by % return after fees and funding. A $500 account can beat a whale.",
 };
 
