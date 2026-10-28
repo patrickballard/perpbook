@@ -1,4 +1,5 @@
 import { FAQ } from "@/lib/faq";
+import { GUIDES } from "@/lib/guides";
 import { siteUrl } from "@/lib/site";
 
 // Per request, like robots.txt, so a SITE_URL set only at runtime (self-hosting) is still used.
@@ -18,6 +19,10 @@ export function GET() {
 - [Demo journal](${link("/w/demo")}): a sample account with every feature
 - [League](${link("/league")}): a weekly competition, Hyperliquid perps traders ranked by % return
 - Any wallet: ${link("/w/")}<address>, for example a 0x… Hyperliquid address
+
+## Guides
+
+${GUIDES.map((g) => `- [${g.h1}](${link(`/${g.slug}`)}): ${g.description}`).join("\n")}
 
 ## What it does
 

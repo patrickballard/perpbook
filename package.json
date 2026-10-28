@@ -11,7 +11,8 @@
     "worker": "tsx src/worker/main.ts",
     "migrate": "tsx src/worker/migrate.ts",
     "prune": "tsx src/worker/prune.ts",
-    "league-final": "tsx src/worker/league-final.ts"
+    "league-final": "tsx src/worker/league-final.ts",
+    "indexnow": "tsx src/worker/indexnow.ts"
   },
   "dependencies": {
     "geist": "^1.7.2",
