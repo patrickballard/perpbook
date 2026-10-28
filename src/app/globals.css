@@ -107,3 +107,23 @@ body {
   white-space: nowrap;
   z-index: 10;
 }
+
+/* Indeterminate progress: how long a wallet takes to load isn't known in advance. */
+@keyframes loading-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.loading-bar {
+  animation: loading-bar 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
