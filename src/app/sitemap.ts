@@ -12,5 +12,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: new URL("/", base).toString(), changeFrequency: "weekly", priority: 1 },
     { url: new URL("/w/demo", base).toString(), changeFrequency: "daily", priority: 0.8 },
+    { url: new URL("/league", base).toString(), changeFrequency: "hourly", priority: 0.9 },
   ];
 }

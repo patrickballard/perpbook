@@ -25,6 +25,9 @@ export default function Home() {
         <span className="font-semibold tracking-tight text-lg mr-auto">
           perpbook<span className="text-accent">.</span>
         </span>
+        <Link href="/league" className="text-sm text-ink-2 hover:text-ink">
+          League
+        </Link>
         <Link href="/w/demo" className="text-sm text-ink-2 hover:text-ink">
           Demo
         </Link>
