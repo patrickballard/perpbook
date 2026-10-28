@@ -12,7 +12,7 @@ export const generateStaticParams = async () => [];
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { address } = await params;
   if (address !== "demo" && !isAddress(address)) return { title: "Page not found · perpbook" };
-  const title = address === "demo" ? "Demo journal · perpbook" : `${address.slice(0, 6)}…${address.slice(-4)} · perpbook`;
+  const title = address === "demo" ? "Demo Hyperliquid journal · perpbook" : `${address.slice(0, 6)}…${address.slice(-4)} Hyperliquid trades · perpbook`;
   const description = "Every trade rebuilt from Hyperliquid, with real PnL after fees and funding.";
   // The image itself comes from opengraph-image.tsx next to this page.
   return { title, description, openGraph: { title, description }, twitter: { card: "summary_large_image", title, description } };

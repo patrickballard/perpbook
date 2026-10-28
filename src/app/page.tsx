@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AddressForm } from "@/components/AddressForm";
+import { FAQ } from "@/lib/faq";
+import { siteUrl } from "@/lib/site";
 
 const REPO = "https://github.com/patrickballard/perpbook";
 
@@ -18,9 +20,37 @@ const points = [
   ["Read-only and open source", "Paste an address: no keys, no signatures, no CSVs. AGPL-licensed, so you can read every line or host it yourself."],
 ];
 
+// What the page is, for search engines and the AI assistants that read their results.
+function structuredData() {
+  const url = siteUrl()?.toString();
+  const data = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: "perpbook",
+      ...(url ? { url } : {}),
+      description: "Free, open-source trading journal for Hyperliquid perps: every trade rebuilt from a wallet's fills, with real PnL after fees and funding.",
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Any (web browser)",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      license: "https://www.gnu.org/licenses/agpl-3.0.html",
+      sameAs: [REPO],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+    },
+  ];
+  // Escaped so no answer can close the script tag.
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 export default function Home() {
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData() }} />
       <header className="flex items-center gap-5 h-16">
         <span className="font-semibold tracking-tight text-lg mr-auto">
           perpbook<span className="text-accent">.</span>
@@ -86,6 +116,23 @@ export default function Home() {
         </div>
         <div className="sm:w-[28rem]">
           <AddressForm />
+        </div>
+      </section>
+
+      <section className="pb-16 max-w-3xl">
+        <h2 className="text-xl font-semibold tracking-tight mb-4">Questions</h2>
+        <div className="space-y-2">
+          {FAQ.map(([q, a]) => (
+            <details key={q} className="card px-5 py-4 group">
+              <summary className="font-medium cursor-pointer list-none flex items-center gap-3">
+                <span className="mr-auto">{q}</span>
+                <span className="text-muted transition-transform group-open:rotate-45" aria-hidden>
+                  +
+                </span>
+              </summary>
+              <p className="text-sm text-ink-2 mt-2 leading-relaxed">{a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
