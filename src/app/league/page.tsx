@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { HyperliquidClient } from "@/lib/hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "@/lib/sync/budget";
 import { currentSeason, X_PROFILE } from "@/lib/league/seasons";
-import { MIN_ACCOUNT, rank, standings, type Standing } from "@/lib/league/standings";
+import { MIN_ACCOUNT, rank, standings, weeklyHistoryCovers, type Memo, type Standing } from "@/lib/league/standings";
 import { money, shortAddress, tone } from "@/lib/format";
 
 // The same for everyone: work the standings out at most every 10 minutes and serve that copy, so a
 // busy page costs Hyperliquid one request per entrant per 10 minutes, not per visitor.
 export const revalidate = 600;
-// A big league's fills can take a while; standings() stops fetching them well before this.
+// A big league's fills can take a while; the client stops every request well before this.
 export const maxDuration = 60;
 
 const season = currentSeason();
@@ -21,7 +22,9 @@ export const metadata: Metadata = {
 
 const uk = (ms: number, o: Intl.DateTimeFormatOptions) => new Date(ms).toLocaleString("en-GB", { timeZone: "Europe/London", ...o });
 const moment = (ms: number) => uk(ms, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-const pct = (r: number) => `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r * 100).toFixed(1)}%`;
+// Signed by what's shown, so a return that rounds to 0.0% isn't "+0.0%" in green.
+const tenths = (r: number) => Math.round(r * 1000);
+const pct = (r: number) => `${tenths(r) > 0 ? "+" : tenths(r) < 0 ? "−" : ""}${(Math.abs(tenths(r)) / 10).toFixed(1)}%`;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 function Row({ s, place }: { s: Standing; place: number }) {
@@ -45,27 +48,49 @@ function Row({ s, place }: { s: Standing; place: number }) {
           </Link>
         </div>
       </td>
-      <td className={`py-2.5 px-2 text-right num font-semibold ${tone(s.ret)}`}>
+      <td className={`py-2.5 px-2 text-right num font-semibold ${tone(tenths(s.ret!))}`}>
         {pct(s.ret!)}
         {/* Phones have no PnL column, and "made the most, finished fourth" is half the fun. */}
         <div className={`sm:hidden text-xs font-normal ${tone(s.pnl)}`}>{money(s.pnl, { compact: true, whole: true })}</div>
       </td>
       <td className={`py-2.5 px-2 text-right num hidden sm:table-cell ${tone(s.pnl)}`}>{money(s.pnl, { compact: true, whole: true })}</td>
-      <td className="py-2.5 pl-2 pr-3 text-right num text-ink-2 hidden sm:table-cell">{s.closed ?? "–"}</td>
+      <td className="py-2.5 pl-2 pr-3 text-right num text-ink-2 hidden sm:table-cell">{s.closed == null ? "–" : `${s.closed.toLocaleString("en-GB")}${s.closedAtLeast ? "+" : ""}`}</td>
     </tr>
   );
 }
+
+/**
+ * A client for one render. Every request, including any waiting for rate budget, stops 45s in, well
+ * inside the function's limit, and retries are short (the usual ones last over a minute when rate
+ * limited). Whoever isn't finished by then is tried again on the next refresh.
+ */
+const client = () =>
+  new HyperliquidClient(budgetedFetch(new WeightBudget(1_000), undefined, AbortSignal.timeout(45_000)), undefined, (ms) =>
+    ms > 3_000 ? Promise.reject(new Error("Hyperliquid is busy")) : new Promise((r) => setTimeout(r, ms)),
+  );
+
+// Each entrant's result is kept for the same 10 minutes as the page, so a refresh only fetches who's missing.
+const memo: Memo = (key, fn) => unstable_cache(fn, [key], { revalidate: 600 })();
 
 /** The season as of this render, which ISR repeats at most every `revalidate` seconds. */
 async function snapshot() {
   const now = Date.now();
   const started = now >= season.start;
-  const rows = started && season.entrants.length ? await standings(season, new HyperliquidClient(budgetedFetch(new WeightBudget(1_000))), now) : [];
-  return { now, started, ended: now >= season.end, ...rank(rows) };
+  const ended = now >= season.end;
+  // Final results are frozen once the week is over: Hyperliquid's weekly history stops reaching back to its start a day later.
+  if (ended && season.final) return { now, started, ended, provisional: false, ...rank(season.final) };
+  const rows = started && season.entrants.length ? await standings(season, client(), now, memo) : [];
+  const result = rank(rows);
+  // Most of the league failed: Hyperliquid is struggling. Throwing keeps the last good copy of the
+  // page up (ISR) rather than caching a table of gaps for 10 minutes. Not at build, where there's none.
+  if (result.failed.length > rows.length / 2 && process.env.NEXT_PHASE !== "phase-production-build") throw new Error("Hyperliquid didn't answer for most of the league");
+  return { now, started, ended, provisional: ended && !weeklyHistoryCovers(season.start, now), ...result };
 }
 
 export default async function LeaguePage() {
-  const { now, started, ended, ranked, sittingOut } = await snapshot();
+  const { now, started, ended, provisional, ranked, sittingOut, failed } = await snapshot();
+  // Results are kept between refreshes, so say how old the oldest one is, not when the page was drawn.
+  const asOf = Math.min(now, ...ranked.map((s) => s.asOf ?? now));
   const enter = season.entryUrl ?? X_PROFILE;
 
   return (
@@ -87,7 +112,7 @@ export default async function LeaguePage() {
         </p>
         <p className="mt-4 text-sm num text-ink-2 flex flex-wrap items-center gap-x-2 gap-y-1">
           {ended ? (
-            <span className="font-medium text-ink">Final</span>
+            <span className="font-medium text-ink">{provisional ? "Final (provisional)" : "Final"}</span>
           ) : started ? (
             <span className="inline-flex items-center gap-1.5 font-medium text-ink">
               <span className="h-2 w-2 rounded-full bg-[var(--up)] animate-pulse" /> Live
@@ -100,7 +125,7 @@ export default async function LeaguePage() {
           {started && !ended && (
             <>
               <span className="text-muted">·</span>
-              <span className="text-muted">updated {uk(now, { hour: "2-digit", minute: "2-digit" })}, every 10 min</span>
+              <span className="text-muted">as of {uk(asOf, { hour: "2-digit", minute: "2-digit" })}, updates every 10 min</span>
             </>
           )}
         </p>
@@ -153,6 +178,12 @@ export default async function LeaguePage() {
         </section>
       )}
 
+      {failed.length > 0 && (
+        <p className="text-xs text-muted mt-3 px-1">
+          Couldn&apos;t reach Hyperliquid for {failed.map((s) => s.handle).join(", ")} just now. They&apos;ll be back within 10 minutes.
+        </p>
+      )}
+
       {sittingOut.length > 0 && (
         <p className="text-xs text-muted mt-3 px-1">
           Not ranked yet: {sittingOut.map((s) => s.handle).join(", ")} (no perps this week, or under ${MIN_ACCOUNT} in the account).
@@ -162,8 +193,8 @@ export default async function LeaguePage() {
       <section className="mt-8 text-xs text-muted space-y-1.5 px-1 max-w-xl">
         <p>
           <span className="text-ink-2 font-medium">How it&apos;s scored.</span> Perps PnL from Hyperliquid&apos;s own numbers, Monday 00:00 to Sunday 20:00 UK, divided by
-          the account&apos;s value at the start (or its average over the week, if that&apos;s bigger, so a mid-week deposit doesn&apos;t count as profit). Holding a position counts.
-          💀 means liquidated this week.
+          the account&apos;s value at the start (or its average over the week, if that&apos;s bigger, so a mid-week deposit doesn&apos;t count as profit). For unified accounts,
+          whose margin sits in the spot balance, that&apos;s the whole account. Holding a position counts. 💀 means liquidated this week.
         </p>
         <p>Read-only: perpbook only reads public data. Not financial advice.</p>
       </section>

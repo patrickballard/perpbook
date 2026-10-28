@@ -45,6 +45,8 @@ src/components/        dashboard, equity chart, PnL calendar, breakdown bars, tr
 
 **History and very active wallets.** Hyperliquid's API docs say only your most recent 10,000 fills are available. In practice (October 2026) older fills are still served, but perpbook doesn't rely on that: when it has a database, a wallet can be saved with "Save history", and a worker stores every new fill and funding payment, so the dashboard loads stored history plus anything newer from Hyperliquid. Some wallets are too active to rebuild in a browser (whales can have hundreds of thousands of fills). perpbook loads up to 20,000 fills from Hyperliquid, or 50,000 saved ones, and if a wallet has more it shows Hyperliquid's own totals rather than numbers rebuilt from part of its history. Saved wallets are capped at 50,000 stored fills (`MAX_FILLS_PER_WALLET`). Design notes: [docs/permanent-history.md](docs/permanent-history.md).
 
+**League.** [/league](https://perpbook.vercel.app/league) ranks a week of Hyperliquid perps by % return: the week's perps PnL from Hyperliquid's own portfolio history (after fees and funding, open positions included) over the account at the start, or its weekly average if bigger. Unified accounts, whose margin sits in the spot balance, are measured against the whole account. The page refreshes at most every 10 minutes and keeps each entrant's result between refreshes, so a big league costs Hyperliquid one round of requests per 10 minutes, not one per visitor. Seasons and entrants live in `src/lib/league/seasons.ts`; `npm run league-final` freezes a finished week's table.
+
 ## Self-hosting
 
 Without a database, perpbook runs entirely in the browser (`npm run dev` above). To keep history permanently:
