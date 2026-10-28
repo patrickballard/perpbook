@@ -49,6 +49,8 @@ export async function loadFromHyperliquid(
     progress?: (message: string) => void;
     /** Called once the fills are in, before funding loads, so the dashboard can show early. */
     onFills?: (partial: Loaded) => void;
+    /** Live state the caller already requested (to show Hyperliquid's totals while fills load), used instead of asking again. */
+    live?: Promise<LiveState>;
   },
 ): Promise<Loaded> {
   const say = (what: string) => (n: number) => o.progress?.(`Loading ${what}: ${n.toLocaleString("en-GB")} so far…`);
@@ -65,7 +67,7 @@ export async function loadFromHyperliquid(
     const [page, fundingPage, live] = await Promise.all([
       client.fills(address, lastTime(cached.fills) ?? 0, o.fillPages, say("new fills from Hyperliquid")),
       client.funding(address, lastTime(cached.funding) ?? cached.fills[0]?.time ?? 0, o.fundingPages),
-      liveState(client, address),
+      o.live ?? liveState(client, address),
     ]);
     const fills = mergeById(cached.fills, normaliseFills(page.rows));
     if (!page.complete) return done(fills, [], page.rows.length, false, live);
@@ -73,7 +75,7 @@ export async function loadFromHyperliquid(
   }
 
   // First visit: fills first, so the dashboard can show before funding (most of the requests).
-  const [page, early] = await Promise.all([client.fills(address, 0, o.fillPages, say("fills from Hyperliquid")), liveState(client, address)]);
+  const [page, early] = await Promise.all([client.fills(address, 0, o.fillPages, say("fills from Hyperliquid")), o.live ?? liveState(client, address)]);
   const fills = normaliseFills(page.rows);
   if (!page.complete) {
     // Too active to rebuild here; funding won't be shown, so don't fetch it.

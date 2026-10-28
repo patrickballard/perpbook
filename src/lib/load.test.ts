@@ -29,6 +29,16 @@ describe("loadFromHyperliquid", () => {
     expect(done.funding).toHaveLength(4);
   });
 
+  it("uses live state the page already asked for instead of asking again for the first snapshot", async () => {
+    const hl = wallet();
+    const live = liveState(hl.client(), A);
+    await live;
+    const asked = requestsOf(hl, "portfolio");
+    await loadFromHyperliquid(hl.client(), A, { ...opts, live });
+    // Only the final snapshot, taken after funding so the check compares the same moment.
+    expect(requestsOf(hl, "portfolio") - asked).toBe(1);
+  });
+
   it("on a repeat visit fetches only what's new, and merges it without duplicates", async () => {
     const hl = wallet();
     const cache = memoryStore();

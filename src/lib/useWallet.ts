@@ -10,7 +10,7 @@ import { dailyPnl, equityCurve, greenStreak, reconcile, tradeStats } from "./eng
 import { demoAccount } from "./demo";
 import type { ShareStats } from "./share";
 import { getStorage, getStoredHistory, lastTime, mergeById, requestTracking, type Storage } from "./history";
-import { liveState, loadFromHyperliquid } from "./load";
+import { liveState, loadFromHyperliquid, type LiveState } from "./load";
 import { browserStore } from "./walletCache";
 
 export type WalletStatus = "idle" | "loading" | "ready" | "error";
@@ -64,6 +64,8 @@ export function useWallet(address: string) {
   const [raw, setRaw] = useState<Raw | null>(null);
   // What's loading right now, for wallets that take a while ("Loading fills from Hyperliquid: 8,000 so far…").
   const [progress, setProgress] = useState<string | null>(null);
+  // Hyperliquid's own totals and open positions, shown while a slow wallet's trades are still being rebuilt.
+  const [early, setEarly] = useState<LiveState | null>(null);
 
   // Each sync gets a number; results from an older one (e.g. still loading funding when the
   // visitor clicks Refresh) are dropped instead of overwriting newer ones.
@@ -81,6 +83,7 @@ export function useWallet(address: string) {
     setStatus("loading");
     setError(null);
     setProgress(null);
+    setEarly(null);
     const loading = (what: string) => (n: number) => note(`Loading ${what}: ${n.toLocaleString("en-GB")} so far…`);
     try {
       if (demo) {
@@ -97,15 +100,19 @@ export function useWallet(address: string) {
           fundingPending: false,
         });
       } else {
+        // Totals and positions take two requests; fills can take a minute for a whale. Ask first and
+        // show them if the load is still going after a moment (sooner, they'd flash before perpbook's own).
+        const asked = liveState(client, address);
+        void Promise.all([asked, new Promise((r) => setTimeout(r, 1500))]).then(([l]) => current() && setEarly(l));
         const storage = await getStorage(address);
         if (storage.state === "tracked") {
           // Saved history from perpbook, then only what's newer straight from Hyperliquid.
-          const stored = await getStoredHistory(address, fetch, loading("your saved history"));
+          const stored = await getStoredHistory(address, fetch, loading("saved history"));
           const since = lastTime(stored.fills);
           const [fills, funding, live] = await Promise.all([
             client.fills(address, since ?? 0, FILL_PAGES, loading("new fills from Hyperliquid")),
             client.funding(address, lastTime(stored.funding) ?? since ?? 0, FUNDING_PAGES),
-            liveState(client, address),
+            liveState(client, address), // again: the saved history took a while, and the check needs totals from the same moment as the newest fills
           ]);
           show({
             fills: mergeById(stored.fills, normaliseFills(fills.rows)),
@@ -136,6 +143,7 @@ export function useWallet(address: string) {
             cache: browserStore(),
             progress: note,
             onFills: (partial) => show(toRaw(partial)),
+            live: asked,
           });
           show(toRaw(loaded));
         }
@@ -191,5 +199,5 @@ export function useWallet(address: string) {
     };
   }, [raw]);
 
-  return { status, error, raw, derived, sync, demo, track, tracking, trackError, progress };
+  return { status, error, raw, derived, sync, demo, track, tracking, trackError, progress, early };
 }

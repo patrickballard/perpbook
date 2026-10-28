@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useWallet } from "@/lib/useWallet";
 import { compactUsd } from "@/lib/share";
 import type { OpenPosition } from "@/lib/hyperliquid/types";
+import type { ShareStats } from "@/lib/share";
 import { count, duration, money, moneyHeadline, pct, price, ratio, shortAddress, size } from "@/lib/format";
 import { EquityChart } from "./EquityChart";
 import { PnlCalendar } from "./PnlCalendar";
@@ -69,8 +70,32 @@ function OpenPositions({ positions }: { positions: OpenPosition[] }) {
   );
 }
 
+/** Hyperliquid's own totals and open positions: what a whale's page shows, and any page while its trades load. */
+function HyperliquidTotals({ summary, positions, missing }: { summary: ShareStats | null; positions: OpenPosition[]; missing?: React.ReactNode }) {
+  return (
+    <>
+      {summary ? (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          <Kpi label="All-time PnL" value={moneyHeadline(summary.allTime)} tone={toneOf(summary.allTime)} sub="perps, after fees and funding · from Hyperliquid" />
+          <Kpi label="Last 30 days" value={summary.month == null ? "–" : moneyHeadline(summary.month)} tone={toneOf(summary.month)} sub="from Hyperliquid" />
+          <Kpi label="Volume" value={compactUsd(summary.volume)} sub="all-time perps · from Hyperliquid" />
+        </div>
+      ) : (
+        missing
+      )}
+      {positions.length > 0 && (
+        <Section title="Open now" hint="Live from Hyperliquid">
+          <OpenPositions positions={positions} />
+        </Section>
+      )}
+    </>
+  );
+}
+
 export function Dashboard({ address }: { address: string }) {
-  const { status, error, raw, derived, sync, demo, track, tracking, trackError, progress } = useWallet(address);
+  const { status, error, raw, derived, sync, demo, track, tracking, trackError, progress, early } = useWallet(address);
+  // A first load that's taking a while: show Hyperliquid's totals instead of an empty page until the trades are rebuilt.
+  const preview = status === "loading" && !raw ? early : null;
   // Nothing to journal: no perp fills and nothing open. Usually the wrong address was pasted.
   const empty = !!raw?.complete && raw.fills.length === 0 && raw.positions.length === 0;
   const full = !!raw?.complete && !empty;
@@ -116,13 +141,29 @@ export function Dashboard({ address }: { address: string }) {
 
       {full && raw && <HistoryNotice storage={raw.storage} onTrack={() => void track()} tracking={tracking} trackError={trackError} />}
 
-      {status === "loading" && progress && (
+      {status === "loading" && progress && !preview && (
         <p className="text-sm text-ink-2 mb-4 px-1" aria-live="polite">
           <span className="num">{progress}</span> <span className="text-muted">Active wallets can take a minute or two.</span>
         </p>
       )}
 
-      {!derived && status === "loading" && (
+      {preview && (
+        <div className="space-y-4">
+          <div className="card px-4 py-3" aria-live="polite">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+              <span className="font-medium">Rebuilding every trade…</span>
+              {progress && <span className="num text-xs text-muted">{progress.replace(" from Hyperliquid", "")}</span>}
+            </div>
+            <div className="mt-2.5 h-1 rounded-full bg-[var(--flat)] overflow-hidden">
+              <div className="loading-bar h-full w-1/3 rounded-full bg-[var(--accent)]" />
+            </div>
+            <p className="text-xs text-muted mt-2">Active wallets can take a minute or two. Meanwhile, these are Hyperliquid&apos;s own totals.</p>
+          </div>
+          <HyperliquidTotals summary={preview.summary} positions={preview.positions} />
+        </div>
+      )}
+
+      {!derived && status === "loading" && !preview && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="card h-24 animate-pulse" />
@@ -137,20 +178,11 @@ export function Dashboard({ address }: { address: string }) {
             loads in one go{raw.fills.length ? ` (it stopped after ${raw.fills.length.toLocaleString("en-GB")})` : ""}, and
             numbers rebuilt from part of its history would be wrong. These are Hyperliquid&apos;s own totals instead.
           </div>
-          {raw.summary ? (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              <Kpi label="All-time PnL" value={moneyHeadline(raw.summary.allTime)} tone={toneOf(raw.summary.allTime)} sub="perps, after fees and funding · from Hyperliquid" />
-              <Kpi label="Last 30 days" value={raw.summary.month == null ? "–" : moneyHeadline(raw.summary.month)} tone={toneOf(raw.summary.month)} sub="from Hyperliquid" />
-              <Kpi label="Volume" value={compactUsd(raw.summary.volume)} sub="all-time perps · from Hyperliquid" />
-            </div>
-          ) : (
-            <p className="text-sm text-muted px-1">Hyperliquid&apos;s totals aren&apos;t available for this wallet right now.</p>
-          )}
-          {raw.positions.length > 0 && (
-            <Section title="Open now" hint="Live from Hyperliquid">
-              <OpenPositions positions={raw.positions} />
-            </Section>
-          )}
+          <HyperliquidTotals
+            summary={raw.summary}
+            positions={raw.positions}
+            missing={<p className="text-sm text-muted px-1">Hyperliquid&apos;s totals aren&apos;t available for this wallet right now.</p>}
+          />
         </div>
       )}
 
