@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { testDb } from "../db/testing";
-import { claimDueWallet, type Cursor, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, nextDueAt, trackWallet } from "../db/store";
+import { claimDueWallet, type Cursor, decodeCursor, encodeCursor, getGaps, getWallet, historyPage, nextDueAt, pruneCappedWallets, trackWallet } from "../db/store";
 import { normaliseFills } from "../hyperliquid/normalise";
 import type { HlFill } from "../hyperliquid/types";
 import { buildTrades } from "../engine/trades";
@@ -249,5 +249,26 @@ describe("loading progress", () => {
     // Pages overlap by a fill (each starts at the last one's timestamp), so the count only ever grows.
     expect(seen).toEqual([...seen].sort((a, b) => a - b));
     expect(seen.at(-1)).toBe(5);
+  });
+});
+
+describe("pruneCappedWallets", () => {
+  it("counts, then removes, only wallets stopped at the per-wallet cap, with their history", async () => {
+    const db = await testDb();
+    const hl = new FakeHyperliquid(10_000, 2);
+    for (let i = 0; i < 6; i++) hl.trade(T0 + i * 1000, i % 2 ? "sell" : "buy", 1);
+    const B = "0x" + "b".repeat(40);
+    await trackWallet(db, A, T0);
+    await trackWallet(db, B, T0);
+    for (let i = 0; i < 3; i++) await syncWallet(db, hl.client(), A, T0 + (i + 1) * H, 2); // A hits a cap of 2
+    await syncWallet(db, hl.client(), B, T0 + H);
+
+    expect(await pruneCappedWallets(db, true)).toEqual({ wallets: 1, fills: 2 });
+    expect(await getWallet(db, A)).not.toBeNull(); // a dry run changes nothing
+    await pruneCappedWallets(db, false);
+    expect(await getWallet(db, A)).toBeNull();
+    expect(await getWallet(db, B)).not.toBeNull();
+    const { rows } = await db.query<{ n: number }>("select count(*)::int as n from fills where address = $1", [A]);
+    expect(rows[0].n).toBe(0);
   });
 });

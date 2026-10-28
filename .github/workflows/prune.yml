@@ -1,0 +1,34 @@
+# Run by hand: remove saved wallets that reached the per-wallet fill cap (their pages show
+# Hyperliquid's own totals, so their stored fills are never used) and shrink the database.
+# Start with a dry run. Logs here are public, so the script prints counts only, never addresses.
+name: Remove capped wallets
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only count them"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-wallets # never alongside a sync
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: npm run prune -- ${{ inputs.dry_run && '--dry-run' || '' }}
