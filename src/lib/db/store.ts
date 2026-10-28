@@ -1,6 +1,7 @@
 import type { HlFill, HlFunding } from "../hyperliquid/types";
 import { fillId, fundingId } from "../hyperliquid/normalise";
 import type { Db } from "./db";
+import { TOO_MANY_FILLS } from "../sync/messages";
 
 export type Wallet = {
   address: string;
@@ -207,4 +208,22 @@ export async function historyPage<T>(
 export async function nextDueAt(db: Db): Promise<number | null> {
   const { rows } = await db.query<{ at: number | null }>("select extract(epoch from min(next_sync_at)) * 1000 as at from wallets");
   return rows[0]?.at == null ? null : Number(rows[0].at);
+}
+
+/**
+ * Saved wallets that reached the per-wallet cap, with their stored history removed unless `dryRun`.
+ * Their pages show Hyperliquid's own totals (more fills than a browser rebuilds), so the stored rows
+ * are never read and only take up the database. Returns how many wallets and fills.
+ */
+export async function pruneCappedWallets(db: Db, dryRun: boolean): Promise<{ wallets: number; fills: number }> {
+  return db.transaction(async (tx) => {
+    const capped = "select address from wallets where sync_error like $1";
+    const { rows } = await tx.query<{ wallets: number; fills: number }>(
+      `select (select count(*)::int from (${capped}) c) as wallets,
+              (select count(*)::int from fills where address in (${capped})) as fills`,
+      [`${TOO_MANY_FILLS}%`],
+    );
+    if (!dryRun) await tx.query(`delete from wallets where address in (${capped})`, [`${TOO_MANY_FILLS}%`]); // fills, funding and gaps cascade
+    return rows[0];
+  });
 }
