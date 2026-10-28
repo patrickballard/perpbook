@@ -8,7 +8,7 @@ The hosted setup costs nothing:
 | Database | [Neon](https://neon.com) Postgres, created from Vercel, US East | Free plan |
 | Sync worker | A scheduled GitHub Actions job ([`sync.yml`](../.github/workflows/sync.yml)) every half hour | Free for public repositories |
 
-Without a database, perpbook still works: it reads everything live from Hyperliquid, and the "Keep my history" button doesn't appear.
+Without a database, perpbook still works: it reads everything live from Hyperliquid, and the "Save history" button doesn't appear.
 
 ## Setup
 
@@ -33,7 +33,7 @@ From then on it runs every half hour on its own. GitHub hides secrets in the log
 ### 3. Check it works
 
 1. `curl https://perpbook.vercel.app/api/w/<any wallet address>` should return `{"state":"untracked"}`. Before the database existed it returned `{"state":"off"}`.
-2. Open that wallet's page and press **Keep my history**. The header changes to "history saved since …".
+2. Open that wallet's page and press **Save history**. The header changes to "history saved since …".
 3. Run **Sync wallets** again (or wait for the next scheduled run). Its log ends with a `worker stopped` line showing `"synced":1` and the number of new fills.
 4. Reload the wallet's page: it now loads saved history from perpbook, then only newer fills from Hyperliquid.
 
