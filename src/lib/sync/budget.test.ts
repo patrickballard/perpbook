@@ -33,6 +33,19 @@ describe("WeightBudget", () => {
   });
 });
 
+describe("WeightBudget with a shared store", () => {
+  it("sees what another budget on the same store spent", async () => {
+    const t = fakeTime();
+    let saved: { tokens: number; at: number } | null = null;
+    const store = { load: () => saved, save: (s: { tokens: number; at: number }) => void (saved = s) };
+    const tab1 = new WeightBudget(1_200, t.clock, t.sleep, store);
+    const tab2 = new WeightBudget(1_200, t.clock, t.sleep, store);
+    for (let i = 0; i < 60; i++) await tab1.take(20); // tab 1 spends the whole minute
+    await tab2.take(20);
+    expect(t.slept).toEqual([1_000]); // so tab 2 waits, instead of starting with a full budget of its own
+  });
+});
+
 describe("budgetedFetch", () => {
   it("charges the base weight before and the per-item weight after", async () => {
     const t = fakeTime();

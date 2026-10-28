@@ -4,7 +4,7 @@
 
 import type { Reconciliation, TradeStats } from "./engine/stats";
 import type { Trade } from "./engine/trades";
-import { moneyHeadline, pct, ratio } from "./format";
+import { day, moneyHeadline, pct, ratio } from "./format";
 
 export type CardData = {
   label: string; // "Demo account" or a short address
@@ -15,9 +15,6 @@ export type CardData = {
   matches: boolean;
   host: string;
 };
-
-const day = (ms: number, withYear: boolean) =>
-  new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
 
 export function cardData(input: { label: string; stats: TradeStats; trades: Trade[]; reconciliation: Reconciliation | null; host: string }): CardData {
   const { stats } = input;

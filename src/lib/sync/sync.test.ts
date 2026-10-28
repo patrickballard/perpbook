@@ -5,6 +5,7 @@ import { normaliseFills } from "../hyperliquid/normalise";
 import type { HlFill } from "../hyperliquid/types";
 import { buildTrades } from "../engine/trades";
 import { FakeHyperliquid } from "./fakeHyperliquid";
+import { HyperliquidClient } from "../hyperliquid/client";
 import { IDLE_WAIT_MAX, idleWait, nextInterval, syncWallet } from "./sync";
 
 const A = "0x" + "a".repeat(40);
@@ -174,6 +175,20 @@ describe("idle worker", () => {
 });
 
 describe("very active wallets", () => {
+  it("doesn't call history complete when more fills share a millisecond than a page holds", async () => {
+    const hl = new FakeHyperliquid(10_000, 500);
+    for (let i = 0; i < 600; i++) hl.trade(T0, i % 2 ? "sell" : "buy", 1); // one sweep: 600 fills, one ms
+    hl.trade(T0 + 1000, "buy", 1);
+    const r = await hl.client().fills(A, 0, 20);
+    expect(r.complete).toBe(false);
+    expect(r.rows.at(-1)!.time).toBe(T0 + 1000); // and it kept going past them
+  });
+
+  it("treats a response that isn't a list as an error, not the end of history", async () => {
+    const odd = (async () => new Response(JSON.stringify({ error: "busy" }), { status: 200 })) as unknown as typeof fetch;
+    await expect(new HyperliquidClient(odd).fills(A, 0, 5)).rejects.toThrow(/unexpected/);
+  });
+
   it("paging says when it stopped at the page limit instead of the end", async () => {
     const hl = new FakeHyperliquid(10_000, 2);
     for (let i = 0; i < 7; i++) hl.trade(T0 + i, i % 2 ? "sell" : "buy", 1);
@@ -197,6 +212,31 @@ describe("very active wallets", () => {
     expect(capped).toMatchObject({ newFills: 0, capped: true, nextSyncAt: T0 + 3 * H + 24 * H });
     expect((await allFills(db)).length).toBe(3);
     expect((await getWallet(db, A))?.syncError).toMatch(/more fills than perpbook saves/);
+  });
+
+  it("fetches older TWAP slices within the per-wallet cap, and only once even if they didn't all fit", async () => {
+    const db = await testDb();
+    const hl = new FakeHyperliquid(10_000, 2);
+    for (let i = 0; i < 10; i++) hl.twap(T0 + i * 1000, i % 2 ? "sell" : "buy", 1);
+    await trackWallet(db, A, T0);
+    await db.query("update wallets set twap_backfilled = false");
+    await syncWallet(db, hl.client(), A, T0 + H, 3);
+    expect((await allFills(db)).length).toBeLessThanOrEqual(4); // a page of new fills, plus at most a page past the cap
+    expect(await getWallet(db, A)).toMatchObject({ twapBackfilled: true });
+  });
+
+  it("stops saving, rather than failing inserts, when the database is near its storage limit", async () => {
+    const db = await testDb();
+    const hl = new FakeHyperliquid();
+    hl.trade(T0, "buy", 1);
+    await trackWallet(db, A, T0);
+    process.env.STORAGE_LIMIT_MB = "1";
+    try {
+      expect(await syncWallet(db, hl.client(), A, T0 + H)).toMatchObject({ newFills: 0, capped: true });
+      expect((await getWallet(db, A))?.syncError).toMatch(/storage is full/);
+    } finally {
+      delete process.env.STORAGE_LIMIT_MB;
+    }
   });
 });
 

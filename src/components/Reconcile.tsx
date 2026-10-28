@@ -1,10 +1,8 @@
 import { hasFullHistory, type Reconciliation } from "@/lib/engine/stats";
-import { money } from "@/lib/format";
+import { day, money } from "@/lib/format";
 
 // One unbreakable amount, so a narrow screen never strands "−" on the line above "$6,043,595.17".
 const Amount = ({ v, sign = true }: { v: number; sign?: boolean }) => <span className="whitespace-nowrap">{money(v, { sign })}</span>;
-
-const day = (ms: number) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 /** How our numbers add up to Hyperliquid's own all-time PnL, or why they don't yet. */
 export function Reconcile({ r, firstFillTime, hyperliquidSince }: { r: Reconciliation; firstFillTime: number | null; hyperliquidSince: number | null }) {

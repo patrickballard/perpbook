@@ -30,11 +30,13 @@ describe("HyperliquidClient", () => {
     expect(slept).toEqual([7_000]);
   });
 
-  it("gives up after three retries with a readable message", async () => {
+  it("gives up after four retries, over a minute, with a readable message", async () => {
     const { fetchImpl, calls } = scripted([429]);
-    const c = new HyperliquidClient(fetchImpl, undefined, async () => {});
+    const waited: number[] = [];
+    const c = new HyperliquidClient(fetchImpl, undefined, async (ms) => void waited.push(ms));
     await expect(c.info({ type: "meta" })).rejects.toThrow(/rate limiting/);
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
+    expect(waited.reduce((a, b) => a + b, 0)).toBeGreaterThan(60_000);
   });
 
   it("does not retry client errors", async () => {

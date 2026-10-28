@@ -2,7 +2,7 @@
 // portfolio endpoint: one cheap request, unlike rebuilding every trade on the server.
 
 import { demoAccount } from "./demo";
-import { dailyPnl } from "./engine/stats";
+import { dailyPnl, dayKey } from "./engine/stats";
 import { normaliseFills, normaliseFunding } from "./hyperliquid/normalise";
 import type { HlPortfolio } from "./hyperliquid/types";
 
@@ -24,13 +24,14 @@ export function shareStats(p: HlPortfolio | null): ShareStats | null {
   return { allTime: series.at(-1)!, month: month ? Number(month[1]) : null, volume: Number(all.vlm) || 0, series };
 }
 
-export function demoShareStats(now?: number): ShareStats {
+export function demoShareStats(now = Date.now()): ShareStats {
   const d = demoAccount(now);
   const fills = normaliseFills(d.fills);
   const days = dailyPnl(fills, normaliseFunding(d.funding), "UTC");
   let c = 0;
   const series = [0, ...days.map((x) => (c += x.net))];
-  const month = days.slice(-30).reduce((s, x) => s + x.net, 0);
+  const monthStart = dayKey(now - 30 * 86_400_000, "UTC");
+  const month = days.filter((x) => x.date > monthStart).reduce((s, x) => s + x.net, 0);
   return { allTime: c, month, volume: fills.reduce((s, f) => s + f.px * f.sz, 0), series };
 }
 

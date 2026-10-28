@@ -7,7 +7,7 @@ import { clientIp, historyRequest, trackLimits, trackRequest, walletStatus } fro
 import { syncWallet } from "./sync";
 
 const addr = (c: string) => "0x" + c.repeat(40);
-const limits = { perIpPerDay: 2, maxWallets: 3 };
+const limits = { perIpPerDay: 2, maxWallets: 3, storageMb: 400 };
 const T0 = Date.UTC(2026, 9, 1);
 
 describe("trackRequest", () => {
@@ -35,6 +35,12 @@ describe("trackRequest", () => {
     for (const c of "abc") await trackWallet(db, addr(c), T0);
     expect((await trackRequest(db, addr("d"), "1.1.1.1", limits, T0)).status).toBe(503);
   });
+
+  it("stops adding wallets when the database is near its storage limit", async () => {
+    const db = await testDb(); // an empty PGlite database is a few MB
+    expect((await trackRequest(db, addr("a"), "1.1.1.1", { ...limits, storageMb: 1 }, T0)).status).toBe(503);
+    expect((await trackRequest(db, addr("a"), "1.1.1.1", limits, T0)).status).toBe(201);
+  });
 });
 
 describe("clientIp", () => {
@@ -55,10 +61,10 @@ describe("clientIp", () => {
 
 describe("trackLimits", () => {
   it("reads whole numbers and falls back on anything else instead of switching the limit off", () => {
-    expect(trackLimits({})).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
-    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "10", MAX_TRACKED_WALLETS: "0" })).toEqual({ perIpPerDay: 10, maxWallets: 0 });
-    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "three", MAX_TRACKED_WALLETS: "-5" })).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
-    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "2.5", MAX_TRACKED_WALLETS: " " })).toEqual({ perIpPerDay: 3, maxWallets: 2_000 });
+    expect(trackLimits({})).toEqual({ perIpPerDay: 3, maxWallets: 2_000, storageMb: 400 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "10", MAX_TRACKED_WALLETS: "0" })).toEqual({ perIpPerDay: 10, maxWallets: 0, storageMb: 400 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "three", MAX_TRACKED_WALLETS: "-5" })).toEqual({ perIpPerDay: 3, maxWallets: 2_000, storageMb: 400 });
+    expect(trackLimits({ TRACK_PER_IP_PER_DAY: "2.5", MAX_TRACKED_WALLETS: " " })).toEqual({ perIpPerDay: 3, maxWallets: 2_000, storageMb: 400 });
   });
 });
 

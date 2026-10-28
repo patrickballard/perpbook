@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { count, money, moneyHeadline, moneyShort } from "./format";
+import { count, money, moneyHeadline, moneyShort, when } from "./format";
 
 describe("money", () => {
   it("keeps cents on small amounts even when asked for whole dollars", () => {
@@ -45,5 +45,19 @@ describe("moneyHeadline", () => {
     expect(moneyHeadline(9_999.99)).toBe("+$9,999.99");
     expect(moneyHeadline(-128_874_184)).toBe("−$128.87M");
     expect(moneyHeadline(2_500_000_000)).toBe("+$2.50B");
+  });
+
+  it("switches unit instead of printing 1000.0k or 1000.00M", () => {
+    expect(moneyHeadline(999_960)).toBe("+$1.00M");
+    expect(moneyHeadline(999_940)).toBe("+$999.9k");
+    expect(moneyHeadline(-999_996_000)).toBe("−$1.00B");
+  });
+});
+
+describe("when", () => {
+  it("adds the year only when it isn't this one", () => {
+    const now = Date.UTC(2026, 9, 28, 12);
+    expect(when(Date.UTC(2026, 2, 13, 12), now)).not.toMatch(/2026/);
+    expect(when(Date.UTC(2025, 2, 13, 12), now)).toMatch(/2025/);
   });
 });

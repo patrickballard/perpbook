@@ -43,7 +43,7 @@ src/components/        dashboard, equity chart, PnL calendar, breakdown bars, tr
 
 **Trade reconstruction.** A trade opens when a coin's position leaves zero and closes when it returns to zero. Hyperliquid reports the position size before every fill (`startPosition`), which perpbook treats as the source of truth. That also catches gaps: if the reported size disagrees with what we've tracked, the trade is closed and flagged `partial` rather than silently producing wrong numbers.
 
-**History and very active wallets.** Hyperliquid's API docs say only your most recent 10,000 fills are available. In practice (October 2026) older fills are still served, but perpbook doesn't rely on that: when it has a database, a wallet can be saved with "Keep my history", and a worker stores every new fill and funding payment, so the dashboard loads stored history plus anything newer from Hyperliquid. Some wallets are too active to rebuild in a browser (whales can have hundreds of thousands of fills). perpbook loads up to 20,000 fills from Hyperliquid, or 50,000 saved ones, and if a wallet has more it shows Hyperliquid's own totals rather than numbers rebuilt from part of its history. Saved wallets are capped at 50,000 stored fills (`MAX_FILLS_PER_WALLET`). Design notes: [docs/permanent-history.md](docs/permanent-history.md).
+**History and very active wallets.** Hyperliquid's API docs say only your most recent 10,000 fills are available. In practice (October 2026) older fills are still served, but perpbook doesn't rely on that: when it has a database, a wallet can be saved with "Save history", and a worker stores every new fill and funding payment, so the dashboard loads stored history plus anything newer from Hyperliquid. Some wallets are too active to rebuild in a browser (whales can have hundreds of thousands of fills). perpbook loads up to 20,000 fills from Hyperliquid, or 50,000 saved ones, and if a wallet has more it shows Hyperliquid's own totals rather than numbers rebuilt from part of its history. Saved wallets are capped at 50,000 stored fills (`MAX_FILLS_PER_WALLET`). Design notes: [docs/permanent-history.md](docs/permanent-history.md).
 
 ## Self-hosting
 
@@ -69,6 +69,7 @@ DATABASE_URL=postgres://… npm run worker
 | `CLIENT_IP_HEADER` | unset | The header your reverse proxy sets to the visitor's IP (e.g. `x-forwarded-for`, `cf-connecting-ip`), for the per-visitor limit. Not needed on Vercel. Unset elsewhere, all visitors share one daily allowance, since any visitor could fake an IP header. |
 | `MAX_TRACKED_WALLETS` | `2000` | Stop accepting new wallets past this. |
 | `MAX_FILLS_PER_WALLET` | `50000` | Stop saving a wallet's fills past this, so one whale can't fill a free database. |
+| `STORAGE_LIMIT_MB` | `400` | Stop saving new wallets and fills once the database is this big (Neon's free tier is 0.5 GB). |
 | `SITE_URL` | unset | Public URL, e.g. `https://perpbook.example`, so share images get absolute links. Not needed on Vercel. |
 
 ## Tests

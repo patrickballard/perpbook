@@ -80,8 +80,18 @@ export async function logTrackRequest(db: Db, ip: string, address: string, now =
   return rows[0].n;
 }
 
+/** Note a view, at most hourly: a saved whale linked from a popular post shouldn't cost a write per visitor. */
 export async function touchWallet(db: Db, address: string, now = Date.now()) {
-  await db.query(`update wallets set last_viewed_at = ${ts} where address = $2`, [now, address]);
+  await db.query(
+    `update wallets set last_viewed_at = ${ts} where address = $2 and (last_viewed_at is null or last_viewed_at < ${ts} - interval '1 hour')`,
+    [now, address],
+  );
+}
+
+/** The database's size on disk, the figure a hosted free tier (Neon: 0.5 GB) limits. */
+export async function databaseBytes(db: Db): Promise<number> {
+  const { rows } = await db.query<{ n: string | number }>("select pg_database_size(current_database()) as n");
+  return Number(rows[0].n);
 }
 
 const CHUNK = 2_000;
