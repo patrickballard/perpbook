@@ -1,9 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { HyperliquidClient, isAddress } from "@/lib/hyperliquid/client";
 import { moneyHeadline, shortAddress } from "@/lib/format";
-import { siteUrl } from "@/lib/site";
+import { C, ogFonts as fonts, siteHost } from "@/lib/og";
 import { compactUsd, demoShareStats, shareStats, sparkline, type ShareStats } from "@/lib/share";
 
 export const alt = "perpbook trading journal: all-time PnL for this wallet";
@@ -14,36 +12,7 @@ export const revalidate = 900;
 // Without this, the route renders on every request and `revalidate` above never applies.
 export const generateStaticParams = async () => [];
 
-// The dark theme from globals.css, which reads best in social feeds.
-const C = { page: "#0d0d0d", ink: "#f0efec", ink2: "#c3c2b7", muted: "#898781", line: "#2c2c2a", accent: "#3987e5", up: "#3fc794", down: "#f07f7f" };
-
-const FONTS = [
-  ["Geist", "geist-sans/Geist-Regular.ttf", 400],
-  ["Geist", "geist-sans/Geist-SemiBold.ttf", 600],
-  ["GeistMono", "geist-mono/GeistMono-Medium.ttf", 500],
-] as const;
-
-async function fonts() {
-  try {
-    return await Promise.all(
-      FONTS.map(async ([name, file, weight]) => ({
-        name,
-        weight,
-        style: "normal" as const,
-        data: await readFile(join(process.cwd(), "node_modules/geist/dist/fonts", file)),
-      })),
-    );
-  } catch {
-    return undefined; // fall back to the default font rather than failing the card
-  }
-}
-
-/** Where the card says to go: the configured site, Vercel's production domain, or the repo. */
-function siteHost(): string {
-  return siteUrl()?.host ?? "github.com/patrickballard/perpbook";
-}
-
-// One quick try: the client's usual retries (up to 14s when rate limited) could outlast the
+// One quick try: the client's usual retries (over a minute when rate limited) would outlast the
 // function's time limit, and then the link gets no preview at all instead of the generic card.
 const cardClient = new HyperliquidClient(
   (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(5_000) }),

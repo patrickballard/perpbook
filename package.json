@@ -10,7 +10,8 @@
     "test": "vitest run",
     "worker": "tsx src/worker/main.ts",
     "migrate": "tsx src/worker/migrate.ts",
-    "prune": "tsx src/worker/prune.ts"
+    "prune": "tsx src/worker/prune.ts",
+    "league-final": "tsx src/worker/league-final.ts"
   },
   "dependencies": {
     "geist": "^1.7.2",

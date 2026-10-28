@@ -1,6 +1,8 @@
 // League seasons: a week of perps, ranked by % return. Entrants come from replies to the
 // season's post; add them here (handle, then address) and the page picks them up.
 
+import type { Standing } from "./standings";
+
 export type Entrant = { handle: string; address: string };
 
 export type Season = {
@@ -12,6 +14,8 @@ export type Season = {
   /** The post to reply to with a wallet, once it's up. */
   entryUrl: string | null;
   entrants: Entrant[];
+  /** Frozen once the week ends (`npm run league-final`), so the table can't shift afterwards. */
+  final?: Standing[];
 };
 
 export const SEASONS: Season[] = [

@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { HlFill, HlPortfolio } from "../hyperliquid/types";
-import { fillStats, rank, weekResult, type Standing } from "./standings";
+import { HyperliquidClient } from "../hyperliquid/client";
+import { fillStats, rank, standings, weekResult, type Standing } from "./standings";
+import type { Season } from "./seasons";
 
 const H = 3_600_000;
 const MON = Date.UTC(2026, 10, 2);
 const SUN = MON + 6 * 24 * H + 20 * H;
 
-/** A weekly portfolio with points every 6 hours from `from`: account value and cumulative PnL by time. */
-function portfolio(from: number, value: (t: number) => number, pnl: (t: number) => number): HlPortfolio {
+/** A weekly portfolio with points every 6 hours from `from`: perps account value and cumulative PnL by time, and the whole account's value. */
+function portfolio(from: number, value: (t: number) => number, pnl: (t: number) => number, whole: (t: number) => number = value): HlPortfolio {
   const ts = Array.from({ length: 30 }, (_, i) => from + i * 6 * H);
-  return [["perpWeek", { accountValueHistory: ts.map((t) => [t, String(value(t))]), pnlHistory: ts.map((t) => [t, String(pnl(t))]), vlm: "0" }]];
+  const series = (f: (t: number) => number) => ts.map((t) => [t, String(f(t))] as [number, string]);
+  return [
+    ["week", { accountValueHistory: series(whole), pnlHistory: series(pnl), vlm: "0" }],
+    ["perpWeek", { accountValueHistory: series(value), pnlHistory: series(pnl), vlm: "0" }],
+  ];
 }
 
 describe("weekResult", () => {
@@ -28,6 +34,11 @@ describe("weekResult", () => {
   it("starts a wallet that didn't exist on Monday from nothing", () => {
     const p = portfolio(MON + 30 * H, () => 2_000, (t) => (t > MON + 60 * H ? -200 : 0));
     expect(weekResult(p, MON, SUN, SUN)?.pnl).toBe(-200);
+  });
+
+  it("measures unified accounts, whose perps account reads $0, against the whole account", () => {
+    const p = portfolio(MON - 12 * H, () => 0, (t) => (t >= MON + 24 * H ? -300 : 0), () => 6_000);
+    expect(weekResult(p, MON, SUN, SUN)).toEqual({ pnl: -300, base: 6_000, ret: -0.05 });
   });
 
   it("leaves accounts under $100 unranked, and wallets with no perps out", () => {
@@ -56,9 +67,33 @@ describe("fillStats", () => {
 
 describe("rank", () => {
   const s = (handle: string, ret: number | null, pnl: number, closed: number | null): Standing => ({ handle, address: handle, pnl, base: 1, ret, closed, liquidated: false });
-  it("ranks by return, counts holders, and sets aside who didn't play", () => {
-    const { ranked, sittingOut } = rank([s("@a", 0.05, 50, 3), s("@b", 0.4, 400, 0), s("@c", null, 5, 2), s("@d", 0, 0, 0), s("@e", -0.2, -20, null)]);
+  it("ranks by return, counts holders, and sets aside who didn't play and who couldn't be loaded", () => {
+    const { ranked, sittingOut, failed } = rank([s("@a", 0.05, 50, 3), s("@b", 0.4, 400, 0), s("@c", null, 5, 2), s("@d", 0, 0, 0), s("@e", -0.2, -20, null), { ...s("@f", null, 0, null), failed: true }]);
     expect(ranked.map((x) => x.handle)).toEqual(["@b", "@a", "@e"]);
     expect(sittingOut.map((x) => x.handle)).toEqual(["@c", "@d"]);
+    expect(failed.map((x) => x.handle)).toEqual(["@f"]);
+  });
+});
+
+describe("standings", () => {
+  const season: Season = { slug: "t", name: "t", start: MON, end: SUN, entryUrl: null, entrants: [{ handle: "@ok", address: "0xAAA" }, { handle: "@down", address: "0xbbb" }, { handle: "@twice", address: "0xaaa" }] };
+  const fake = (failFor: string) =>
+    (async (_u: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.user === failFor) return new Response("busy", { status: 500 });
+      if (body.type === "portfolio") return Response.json(portfolio(MON - H, () => 1_000, (t) => (t > MON ? 100 : 0)));
+      return Response.json([]);
+    }) as unknown as typeof fetch;
+
+  it("marks who Hyperliquid didn't answer for, without keeping that, and counts a wallet entered twice once", async () => {
+    const kept = new Map<string, unknown>();
+    const memo = async <T,>(key: string, fn: () => Promise<T>) => {
+      const v = await fn(); // a throw propagates, so nothing is kept
+      kept.set(key, v);
+      return v;
+    };
+    const rows = await standings(season, new HyperliquidClient(fake("0xbbb"), undefined, async () => {}), SUN, memo);
+    expect(rows.map((r) => [r.handle, r.ret, !!r.failed])).toEqual([["@ok", 0.1, false], ["@down", null, true]]);
+    expect([...kept.keys()]).toEqual(["league:t:0xaaa:week", "league:t:0xaaa:fills"]);
   });
 });
