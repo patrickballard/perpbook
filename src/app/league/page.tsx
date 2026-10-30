@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
+import { Countdown } from "@/components/Countdown";
 import { HyperliquidClient } from "@/lib/hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "@/lib/sync/budget";
 import { avatarPath, currentSeason, X_HANDLE, X_PROFILE } from "@/lib/league/seasons";
@@ -138,9 +139,16 @@ export default async function LeaguePage() {
               <span className="text-muted">as of {uk(asOf, { hour: "2-digit", minute: "2-digit" })}, updates every 10 min</span>
             </>
           )}
+          {!ended && (
+            <Countdown
+              to={started ? season.end : season.start}
+              label={started ? "Time until the week ends" : "Time until the league starts"}
+              done={started ? "Ended: final standings within 10 min" : "Started: standings within 10 min"}
+            />
+          )}
         </p>
         {!ended && (
-          <a href={X_PROFILE} className="inline-flex items-center mt-5 h-11 px-5 rounded-xl bg-ink text-page font-medium hover:opacity-90">
+          <a href={X_PROFILE} className="inline-flex items-center justify-center text-center mt-5 min-h-11 py-2.5 px-5 rounded-xl bg-ink text-page font-medium hover:opacity-90">
             Enter: DM {X_HANDLE} your wallet
           </a>
         )}
