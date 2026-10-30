@@ -12,6 +12,7 @@
     "migrate": "tsx src/worker/migrate.ts",
     "prune": "tsx src/worker/prune.ts",
     "league-final": "tsx src/worker/league-final.ts",
+    "league-avatars": "tsx src/worker/league-avatars.ts",
     "indexnow": "tsx src/worker/indexnow.ts"
   },
   "dependencies": {
