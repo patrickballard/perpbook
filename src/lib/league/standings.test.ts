@@ -76,7 +76,7 @@ describe("rank", () => {
 });
 
 describe("standings", () => {
-  const season: Season = { slug: "t", name: "t", start: MON, end: SUN, entryUrl: null, entrants: [{ handle: "@ok", address: "0xAAA" }, { handle: "@down", address: "0xbbb" }, { handle: "@twice", address: "0xaaa" }] };
+  const season: Season = { slug: "t", name: "t", start: MON, end: SUN, entrants: [{ handle: "@ok", address: "0xAAA" }, { handle: "@down", address: "0xbbb" }, { handle: "@twice", address: "0xaaa" }] };
   const fake = (failFor: string) =>
     (async (_u: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));

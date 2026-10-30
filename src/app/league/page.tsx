@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { HyperliquidClient } from "@/lib/hyperliquid/client";
 import { budgetedFetch, WeightBudget } from "@/lib/sync/budget";
-import { currentSeason, X_PROFILE } from "@/lib/league/seasons";
+import { avatarPath, currentSeason, X_HANDLE, X_PROFILE } from "@/lib/league/seasons";
 import { MIN_ACCOUNT, rank, standings, weeklyHistoryCovers, type Memo, type Standing } from "@/lib/league/standings";
 import { money, shortAddress, tone } from "@/lib/format";
 
@@ -27,25 +28,35 @@ const tenths = (r: number) => Math.round(r * 1000);
 const pct = (r: number) => `${tenths(r) > 0 ? "+" : tenths(r) < 0 ? "−" : ""}${(Math.abs(tenths(r)) / 10).toFixed(1)}%`;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
+// Already a small saved copy, so no image optimisation to pay for.
+const Avatar = ({ handle, size }: { handle: string; size: number }) => (
+  <Image src={avatarPath(handle)} alt="" width={size} height={size} unoptimized className="rounded-full shrink-0 bg-line" style={{ width: size, height: size }} />
+);
+
 function Row({ s, place }: { s: Standing; place: number }) {
   return (
     <tr className="border-b border-line last:border-0">
       <td className="py-2.5 pl-3 pr-1 w-10 text-ink-2 num">{MEDALS[place - 1] ?? place}</td>
       <td className="py-2.5 px-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <a href={`https://x.com/${s.handle.replace(/^@/, "")}`} className="font-medium truncate hover:underline underline-offset-2">
-            {s.handle}
-          </a>
-          {s.liquidated && (
-            <span className="shrink-0" title="Liquidated this week">
-              💀
-            </span>
-          )}
-        </div>
-        <div>
-          <Link href={`/w/${s.address}`} className="num text-xs text-muted hover:text-ink-2">
-            {shortAddress(s.address)}
-          </Link>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Avatar handle={s.handle} size={32} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <a href={`https://x.com/${s.handle.slice(1)}`} className="font-medium truncate hover:underline underline-offset-2">
+                {s.handle}
+              </a>
+              {s.liquidated && (
+                <span className="shrink-0" title="Liquidated this week">
+                  💀
+                </span>
+              )}
+            </div>
+            <div>
+              <Link href={`/w/${s.address}`} className="num text-xs text-muted hover:text-ink-2">
+                {shortAddress(s.address)}
+              </Link>
+            </div>
+          </div>
         </div>
       </td>
       <td className={`py-2.5 px-2 text-right num font-semibold ${tone(tenths(s.ret!))}`}>
@@ -91,7 +102,6 @@ export default async function LeaguePage() {
   const { now, started, ended, provisional, ranked, sittingOut, failed } = await snapshot();
   // Results are kept between refreshes, so say how old the oldest one is, not when the page was drawn.
   const asOf = Math.min(now, ...ranked.map((s) => s.asOf ?? now));
-  const enter = season.entryUrl ?? X_PROFILE;
 
   return (
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
@@ -130,8 +140,8 @@ export default async function LeaguePage() {
           )}
         </p>
         {!ended && (
-          <a href={enter} className="inline-flex items-center mt-5 h-11 px-5 rounded-xl bg-ink text-page font-medium hover:opacity-90">
-            Enter: reply with your wallet
+          <a href={X_PROFILE} className="inline-flex items-center mt-5 h-11 px-5 rounded-xl bg-ink text-page font-medium hover:opacity-90">
+            Enter: DM {X_HANDLE} your wallet
           </a>
         )}
       </section>
@@ -141,12 +151,19 @@ export default async function LeaguePage() {
           {season.entrants.length ? (
             <>
               <h2 className="font-semibold">{season.entrants.length.toLocaleString("en-GB")} in so far</h2>
-              <p className="text-sm text-ink-2 mt-2 leading-relaxed">{season.entrants.map((e) => e.handle).join(" · ")}</p>
+              <ul className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-sm text-ink-2">
+                {season.entrants.map((e) => (
+                  <li key={e.address} className="flex items-center gap-1.5">
+                    <Avatar handle={e.handle} size={20} />
+                    {e.handle}
+                  </li>
+                ))}
+              </ul>
             </>
           ) : (
             <>
               <h2 className="font-semibold">Entries are open</h2>
-              <p className="text-sm text-ink-2 mt-1">Reply to the post with your Hyperliquid wallet. Entries count from Monday, even if they come in later.</p>
+              <p className="text-sm text-ink-2 mt-1">DM {X_HANDLE} on X with your Hyperliquid wallet. Entries count from Monday, even if they come in later.</p>
             </>
           )}
         </section>
@@ -173,7 +190,7 @@ export default async function LeaguePage() {
               </tbody>
             </table>
           ) : (
-            <p className="p-5 text-sm text-ink-2">{season.entrants.length ? "Nobody has traded yet this week." : "No entries yet. Reply to the post with your wallet to be first."}</p>
+            <p className="p-5 text-sm text-ink-2">{season.entrants.length ? "Nobody has traded yet this week." : `No entries yet. DM ${X_HANDLE} your wallet to be first.`}</p>
           )}
         </section>
       )}
@@ -196,7 +213,7 @@ export default async function LeaguePage() {
           the account&apos;s value at the start (or its average over the week, if that&apos;s bigger, so a mid-week deposit doesn&apos;t count as profit). For unified accounts,
           whose margin sits in the spot balance, that&apos;s the whole account. Holding a position counts. 💀 means liquidated this week.
         </p>
-        <p>Read-only: perpbook only reads public data. Not financial advice.</p>
+        <p>Entering puts your X handle, picture and wallet on this page. Read-only: perpbook only reads public data. Not financial advice.</p>
       </section>
     </main>
   );
